@@ -14,7 +14,7 @@ DATABASE_PATH = DATABASE_DIR / "signals.db"
 
 load_dotenv(BASE_DIR / ".env")
 
-BINANCE_BASE_URL = os.getenv("BINANCE_BASE_URL", "https://api.binance.com")
+BINANCE_BASE_URL = os.getenv("BINANCE_BASE_URL", "https://api.binance.us")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
 
