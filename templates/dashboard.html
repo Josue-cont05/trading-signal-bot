@@ -1,0 +1,882 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0f172a">
+    <title>Trading Signal Bot</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f172a;
+        --card: #111827;
+        --border: #1f2937;
+        --border-soft: rgba(148, 163, 184, 0.18);
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --green: #22c55e;
+        --red: #ef4444;
+        --yellow: #f59e0b;
+        --blue: #3b82f6;
+        --gray: #64748b;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background:
+          radial-gradient(circle at 12% 0%, rgba(59, 130, 246, 0.18), transparent 26rem),
+          radial-gradient(circle at 86% 10%, rgba(34, 197, 94, 0.12), transparent 22rem),
+          linear-gradient(180deg, #101a31 0%, var(--bg) 42%, #08111f 100%);
+        color: var(--text);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      }
+
+      .app-shell {
+        width: min(1440px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 24px 0;
+      }
+
+      .dashboard-header,
+      .metric-card,
+      .market-card,
+      .panel {
+        border: 1px solid var(--border);
+        background: rgba(17, 24, 39, 0.86);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.26);
+        backdrop-filter: blur(16px);
+      }
+
+      .dashboard-header {
+        border-radius: 18px;
+        padding: 18px;
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 46px;
+        height: 46px;
+        border: 1px solid rgba(34, 197, 94, 0.42);
+        border-radius: 14px;
+        background: linear-gradient(145deg, rgba(34, 197, 94, 0.2), rgba(59, 130, 246, 0.14));
+        color: var(--green);
+        font-weight: 900;
+        box-shadow: 0 0 24px rgba(34, 197, 94, 0.18);
+      }
+
+      .eyebrow {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.78rem;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        color: #f8fafc;
+        font-size: clamp(1.6rem, 3vw, 2.4rem);
+        font-weight: 800;
+        letter-spacing: 0;
+      }
+
+      .system-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 38px;
+        padding: 8px 12px;
+        border: 1px solid rgba(34, 197, 94, 0.38);
+        border-radius: 999px;
+        background: rgba(34, 197, 94, 0.1);
+        color: #bbf7d0;
+        font-size: 0.82rem;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .system-pill.offline {
+        border-color: rgba(239, 68, 68, 0.38);
+        background: rgba(239, 68, 68, 0.1);
+        color: #fecaca;
+      }
+
+      .online-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.12), 0 0 18px rgba(34, 197, 94, 0.9);
+        animation: pulseGlow 1.9s ease-in-out infinite;
+      }
+
+      .system-pill.offline .online-dot {
+        background: var(--red);
+        box-shadow: 0 0 0 6px rgba(239, 68, 68, 0.12), 0 0 18px rgba(239, 68, 68, 0.8);
+      }
+
+      .header-stat {
+        min-width: 138px;
+        padding: 10px 12px;
+        border: 1px solid var(--border-soft);
+        border-radius: 14px;
+        background: rgba(15, 23, 42, 0.72);
+      }
+
+      .header-stat span {
+        display: block;
+        color: var(--muted);
+        font-size: 0.74rem;
+      }
+
+      .header-stat strong {
+        display: block;
+        margin-top: 2px;
+        color: #f8fafc;
+        font-size: 0.93rem;
+        font-weight: 800;
+      }
+
+      .metric-card,
+      .market-card,
+      .panel {
+        border-radius: 18px;
+      }
+
+      .metric-card,
+      .market-card {
+        transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+      }
+
+      .metric-card {
+        position: relative;
+        overflow: hidden;
+        min-height: 138px;
+        padding: 18px;
+      }
+
+      .metric-card::after {
+        position: absolute;
+        right: -36px;
+        bottom: -42px;
+        width: 110px;
+        height: 110px;
+        border-radius: 50%;
+        background: rgba(59, 130, 246, 0.08);
+        content: "";
+      }
+
+      .metric-card:hover,
+      .market-card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(59, 130, 246, 0.48);
+        box-shadow: 0 26px 72px rgba(0, 0, 0, 0.36);
+      }
+
+      .metric-icon {
+        display: grid;
+        place-items: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 13px;
+        background: rgba(59, 130, 246, 0.12);
+        color: var(--blue);
+        font-size: 1.2rem;
+      }
+
+      .metric-label {
+        margin: 14px 0 0;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .metric-value {
+        margin: 4px 0 0;
+        color: #f8fafc;
+        font-size: clamp(1.55rem, 2.6vw, 2.1rem);
+        font-weight: 850;
+        line-height: 1;
+      }
+
+      .metric-sub {
+        margin-top: 9px;
+        color: var(--muted);
+        font-size: 0.79rem;
+      }
+
+      .panel {
+        overflow: hidden;
+      }
+
+      .panel-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .panel-title {
+        margin: 0;
+        color: #f8fafc;
+        font-size: 1rem;
+        font-weight: 800;
+      }
+
+      .panel-subtitle {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .loading {
+        opacity: 0.62;
+        pointer-events: none;
+      }
+
+      .table-responsive {
+        scrollbar-color: #334155 #0b1120;
+      }
+
+      .table-responsive::-webkit-scrollbar,
+      .terminal::-webkit-scrollbar {
+        height: 10px;
+        width: 10px;
+      }
+
+      .table-responsive::-webkit-scrollbar-track,
+      .terminal::-webkit-scrollbar-track {
+        background: #0b1120;
+      }
+
+      .table-responsive::-webkit-scrollbar-thumb,
+      .terminal::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 999px;
+      }
+
+      .signals-table {
+        min-width: 1020px;
+        margin: 0;
+        color: var(--text);
+        vertical-align: middle;
+      }
+
+      .signals-table thead th {
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(15, 23, 42, 0.94);
+        color: #94a3b8;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .signals-table tbody td {
+        padding: 16px 18px;
+        border-color: rgba(31, 41, 55, 0.72);
+        background: rgba(17, 24, 39, 0.58);
+        color: #dbe4f0;
+        font-size: 0.9rem;
+      }
+
+      .signals-table tbody tr:hover td {
+        background: rgba(30, 41, 59, 0.7);
+      }
+
+      .symbol-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        color: #f8fafc;
+        font-weight: 850;
+      }
+
+      .symbol-badge::before {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--yellow);
+        box-shadow: 0 0 14px rgba(245, 158, 11, 0.7);
+        content: "";
+      }
+
+      .timeframe-chip,
+      .state-badge,
+      .rr-chip,
+      .trend {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.78rem;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .timeframe-chip {
+        border: 1px solid rgba(59, 130, 246, 0.35);
+        background: rgba(59, 130, 246, 0.12);
+        color: #bfdbfe;
+      }
+
+      .rr-chip {
+        border: 1px solid rgba(245, 158, 11, 0.32);
+        background: rgba(245, 158, 11, 0.1);
+        color: #fde68a;
+      }
+
+      .state-badge {
+        animation: badgeGlow 2.5s ease-in-out infinite;
+      }
+
+      .state-badge.active {
+        border: 1px solid rgba(34, 197, 94, 0.38);
+        background: rgba(34, 197, 94, 0.11);
+        color: #bbf7d0;
+      }
+
+      .state-badge.won {
+        border: 1px solid rgba(59, 130, 246, 0.38);
+        background: rgba(59, 130, 246, 0.13);
+        color: #bfdbfe;
+      }
+
+      .state-badge.lost {
+        border: 1px solid rgba(239, 68, 68, 0.38);
+        background: rgba(239, 68, 68, 0.12);
+        color: #fecaca;
+      }
+
+      .state-badge.cancelled {
+        border: 1px solid rgba(100, 116, 139, 0.42);
+        background: rgba(100, 116, 139, 0.14);
+        color: #cbd5e1;
+      }
+
+      .price {
+        color: #f8fafc;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .price.stop {
+        color: #fecaca;
+      }
+
+      .price.tp {
+        color: #bbf7d0;
+      }
+
+      .market-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 16px;
+      }
+
+      .market-card {
+        padding: 18px;
+      }
+
+      .market-symbol {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+
+      .market-symbol strong {
+        color: #f8fafc;
+        font-size: 1rem;
+      }
+
+      .market-price {
+        color: #f8fafc;
+        font-size: 1.65rem;
+        font-weight: 850;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .trend.bullish {
+        background: rgba(34, 197, 94, 0.11);
+        color: #bbf7d0;
+      }
+
+      .trend.bearish {
+        background: rgba(239, 68, 68, 0.12);
+        color: #fecaca;
+      }
+
+      .trend.neutral {
+        background: rgba(245, 158, 11, 0.12);
+        color: #fde68a;
+      }
+
+      .terminal {
+        max-height: 360px;
+        min-height: 294px;
+        overflow: auto;
+        padding: 18px;
+        background:
+          linear-gradient(180deg, rgba(34, 197, 94, 0.035), transparent),
+          #020617;
+        color: #d1fae5;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 0.82rem;
+      }
+
+      .log-line {
+        display: grid;
+        grid-template-columns: 120px 150px minmax(0, 1fr);
+        gap: 10px;
+        padding: 7px 0;
+        border-bottom: 1px solid rgba(31, 41, 55, 0.42);
+      }
+
+      .log-time {
+        color: #64748b;
+      }
+
+      .log-success {
+        color: var(--green);
+      }
+
+      .log-warning {
+        color: var(--yellow);
+      }
+
+      .log-error {
+        color: var(--red);
+      }
+
+      .log-info {
+        color: #93c5fd;
+      }
+
+      .empty-state {
+        padding: 54px 20px;
+        text-align: center;
+      }
+
+      .empty-state h2 {
+        margin: 0 0 8px;
+        color: #f8fafc;
+        font-size: 1.2rem;
+      }
+
+      .empty-state p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .footer {
+        padding: 24px 0 8px;
+        color: #64748b;
+        font-size: 0.84rem;
+        text-align: center;
+      }
+
+      .fade-in {
+        animation: fadeIn 520ms ease both;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes pulseGlow {
+        0%,
+        100% {
+          transform: scale(1);
+          box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.1), 0 0 18px rgba(34, 197, 94, 0.75);
+        }
+        50% {
+          transform: scale(1.18);
+          box-shadow: 0 0 0 9px rgba(34, 197, 94, 0.06), 0 0 26px rgba(34, 197, 94, 1);
+        }
+      }
+
+      @keyframes badgeGlow {
+        0%,
+        100% {
+          box-shadow: none;
+        }
+        50% {
+          box-shadow: 0 0 18px rgba(34, 197, 94, 0.12);
+        }
+      }
+
+      @media (max-width: 991px) {
+        .market-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .log-line {
+          grid-template-columns: 1fr;
+          gap: 2px;
+        }
+      }
+
+      @media (max-width: 767px) {
+        .app-shell {
+          width: min(100% - 20px, 1440px);
+          padding: 14px 0;
+        }
+
+        .dashboard-header,
+        .metric-card,
+        .market-card,
+        .panel {
+          border-radius: 14px;
+        }
+
+        .dashboard-header {
+          padding: 14px;
+        }
+
+        .header-stat {
+          flex: 1 1 calc(50% - 8px);
+          min-width: 0;
+        }
+
+        .panel-heading {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="dashboard-header fade-in">
+        <div class="d-flex flex-column flex-xl-row align-items-xl-center justify-content-between gap-4">
+          <div class="d-flex align-items-center gap-3">
+            <div class="brand-mark">TS</div>
+            <div>
+              <p class="eyebrow">Algorithmic crypto signals</p>
+              <h1>Trading Signal Bot</h1>
+            </div>
+          </div>
+
+          <div class="d-flex flex-wrap align-items-center gap-2 gap-md-3">
+            <div id="system-status" class="system-pill"><span class="online-dot"></span> ONLINE</div>
+            <div class="header-stat">
+              <span>Ultimo escaneo</span>
+              <strong id="last-scan">{% if stats.last_scan %}{{ stats.last_scan }}{% else %}Pendiente{% endif %}</strong>
+            </div>
+            <div class="header-stat">
+              <span>Hora actual</span>
+              <strong id="current-time">--:--:--</strong>
+            </div>
+            <div class="header-stat">
+              <span>Pares monitoreados</span>
+              <strong id="monitored-pairs">3 activos</strong>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <section id="stats-grid" class="row g-3 g-xl-4 mt-1 fade-in" aria-label="Estadisticas de señales">
+        <div class="col-6 col-xl-2">
+          <article class="metric-card h-100">
+            <div class="metric-icon">S</div>
+            <p class="metric-label">Total señales</p>
+            <p id="stat-total" class="metric-value">{{ stats.total }}</p>
+            <div class="metric-sub">Historial SQLite</div>
+          </article>
+        </div>
+        <div class="col-6 col-xl-2">
+          <article class="metric-card h-100">
+            <div class="metric-icon" style="color: var(--green); background: rgba(34, 197, 94, 0.12);">UP</div>
+            <p class="metric-label">Activas</p>
+            <p id="stat-active" class="metric-value">{{ stats.active }}</p>
+            <div class="metric-sub">Setups abiertos</div>
+          </article>
+        </div>
+        <div class="col-6 col-xl-2">
+          <article class="metric-card h-100">
+            <div class="metric-icon" style="color: var(--blue); background: rgba(59, 130, 246, 0.12);">OK</div>
+            <p class="metric-label">Ganadas</p>
+            <p id="stat-won" class="metric-value">{{ stats.won }}</p>
+            <div class="metric-sub">TP alcanzado</div>
+          </article>
+        </div>
+        <div class="col-6 col-xl-2">
+          <article class="metric-card h-100">
+            <div class="metric-icon" style="color: var(--red); background: rgba(239, 68, 68, 0.12);">SL</div>
+            <p class="metric-label">Perdidas</p>
+            <p id="stat-lost" class="metric-value">{{ stats.lost }}</p>
+            <div class="metric-sub">Stop loss</div>
+          </article>
+        </div>
+        <div class="col-6 col-xl-2">
+          <article class="metric-card h-100">
+            <div class="metric-icon" style="color: var(--yellow); background: rgba(245, 158, 11, 0.12);">%</div>
+            <p class="metric-label">Win rate</p>
+            <p id="stat-win-rate" class="metric-value">{{ "%.0f"|format(stats.win_rate) }}%</p>
+            <div class="metric-sub">Sobre cerradas</div>
+          </article>
+        </div>
+        <div class="col-6 col-xl-2">
+          <article class="metric-card h-100">
+            <div class="metric-icon">L</div>
+            <p class="metric-label">Ultima señal</p>
+            <p id="stat-latest-symbol" class="metric-value" style="font-size: 1.35rem;">{% if stats.latest_signal %}{{ stats.latest_signal.symbol }}{% else %}--{% endif %}</p>
+            <div id="stat-latest-sub" class="metric-sub">{% if stats.latest_signal %}{{ stats.latest_signal.timeframe|upper }} · {{ stats.latest_signal.status }}{% else %}Sin señales aun{% endif %}</div>
+          </article>
+        </div>
+      </section>
+
+      <section class="mt-4 fade-in" aria-label="Mercado monitoreado">
+        <div class="panel-heading px-0 border-0">
+          <div>
+            <h2 class="panel-title">Mercado Spot Monitoreado</h2>
+            <p class="panel-subtitle">Precios reales desde Binance API con fallback automatico.</p>
+          </div>
+        </div>
+        <div id="market-grid" class="market-grid">
+          {% for item in market %}
+            <article class="market-card">
+              <div class="market-symbol">
+                <strong>{{ item.symbol }}</strong>
+                <span class="trend {{ item.direction }}">{{ item.direction }}</span>
+              </div>
+              <div class="market-price">{{ "%.4f"|format(item.price) }}</div>
+              <div class="metric-sub">{{ "%.2f"|format(item.change_percent) }}% 24h · {{ item.source }}</div>
+            </article>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section id="signals-panel" class="panel mt-4 fade-in" aria-label="Tabla de señales">
+        <div class="panel-heading">
+          <div>
+            <h2 class="panel-title">Señales Detectadas</h2>
+            <p class="panel-subtitle">Entradas, stops, objetivos y estado operativo ordenados por fecha.</p>
+          </div>
+          <span id="refresh-chip" class="timeframe-chip">Actualizando...</span>
+        </div>
+
+        <div class="table-responsive">
+          <table class="table signals-table">
+            <thead>
+              <tr>
+                <th>Par</th>
+                <th>Timeframe</th>
+                <th>Entrada</th>
+                <th>Stop Loss</th>
+                <th>TP1</th>
+                <th>TP2</th>
+                <th>Risk/Reward</th>
+                <th>Estado</th>
+                <th>Fecha</th>
+              </tr>
+            </thead>
+            <tbody id="signals-body">
+              {% for signal in signals %}
+                <tr>
+                  <td><span class="symbol-badge">{{ signal.symbol }}</span></td>
+                  <td><span class="timeframe-chip">{{ signal.timeframe|upper }}</span></td>
+                  <td class="price">{{ "%.4f"|format(signal.entry_price) }}</td>
+                  <td class="price stop">{{ "%.4f"|format(signal.stop_loss) }}</td>
+                  <td class="price tp">{{ "%.4f"|format(signal.take_profit_1) }}</td>
+                  <td class="price tp">{{ "%.4f"|format(signal.take_profit_2) }}</td>
+                  <td><span class="rr-chip">{{ signal.risk_reward }}</span></td>
+                  <td><span class="state-badge {{ signal.status }}">{{ signal.status }}</span></td>
+                  <td class="text-secondary-emphasis">{{ signal.created_at }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div id="signals-empty" class="empty-state {% if signals %}d-none{% endif %}">
+          <h2>Sin señales registradas</h2>
+          <p>Ejecuta <strong>python scanner.py</strong> para iniciar el analisis.</p>
+        </div>
+      </section>
+
+      <section id="logs-panel" class="panel mt-4 fade-in" aria-label="Logs del scanner">
+        <div class="panel-heading">
+          <div>
+            <h2 class="panel-title">Scanner Logs</h2>
+            <p class="panel-subtitle">Eventos recientes del motor de analisis.</p>
+          </div>
+          <span class="system-pill"><span class="online-dot"></span> STREAM</span>
+        </div>
+        <div id="logs-terminal" class="terminal"></div>
+      </section>
+
+      <footer class="footer">
+        Trading Signal Bot V1 · Flask + Binance + Telegram + Render
+      </footer>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      const refreshMs = 60000;
+      const statusEl = document.getElementById("system-status");
+      const refreshChip = document.getElementById("refresh-chip");
+      const currentTime = document.getElementById("current-time");
+
+      function formatNumber(value, digits = 4) {
+        const numeric = Number(value || 0);
+        return numeric.toLocaleString("en-US", {
+          minimumFractionDigits: digits,
+          maximumFractionDigits: digits
+        });
+      }
+
+      function formatPercent(value) {
+        const numeric = Number(value || 0);
+        const sign = numeric > 0 ? "+" : "";
+        return `${sign}${numeric.toFixed(2)}%`;
+      }
+
+      function humanTime(value) {
+        if (!value) return "--";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        const diff = Math.max(0, Date.now() - date.getTime());
+        const minutes = Math.floor(diff / 60000);
+        if (minutes < 1) return "ahora";
+        if (minutes < 60) return `hace ${minutes}m`;
+        const hours = Math.floor(minutes / 60);
+        if (hours < 24) return `hace ${hours}h`;
+        return date.toLocaleString("es-ES");
+      }
+
+      function updateClock() {
+        currentTime.textContent = new Date().toLocaleString("es-ES", {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric"
+        });
+      }
+
+      function setOnline(isOnline) {
+        statusEl.classList.toggle("offline", !isOnline);
+        statusEl.innerHTML = `<span class="online-dot"></span>${isOnline ? "ONLINE" : "API ERROR"}`;
+      }
+
+      async function fetchJson(url) {
+        const response = await fetch(url, { cache: "no-store" });
+        if (!response.ok) throw new Error(`${url} returned ${response.status}`);
+        return response.json();
+      }
+
+      function renderStats(stats) {
+        document.getElementById("stat-total").textContent = stats.total ?? 0;
+        document.getElementById("stat-active").textContent = stats.active ?? 0;
+        document.getElementById("stat-won").textContent = stats.won ?? 0;
+        document.getElementById("stat-lost").textContent = stats.lost ?? 0;
+        document.getElementById("stat-win-rate").textContent = `${Math.round(stats.win_rate || 0)}%`;
+
+        const latest = stats.latest_signal;
+        document.getElementById("stat-latest-symbol").textContent = latest ? latest.symbol : "--";
+        document.getElementById("stat-latest-sub").textContent = latest ? `${String(latest.timeframe).toUpperCase()} · ${latest.status}` : "Sin señales aun";
+        document.getElementById("last-scan").textContent = stats.last_scan ? humanTime(stats.last_scan) : "Pendiente";
+      }
+
+      function renderSignals(signals) {
+        const tbody = document.getElementById("signals-body");
+        const empty = document.getElementById("signals-empty");
+        empty.classList.toggle("d-none", signals.length > 0);
+
+        tbody.innerHTML = signals.map((signal) => `
+          <tr>
+            <td><span class="symbol-badge">${signal.symbol}</span></td>
+            <td><span class="timeframe-chip">${String(signal.timeframe).toUpperCase()}</span></td>
+            <td class="price">${formatNumber(signal.entry_price)}</td>
+            <td class="price stop">${formatNumber(signal.stop_loss)}</td>
+            <td class="price tp">${formatNumber(signal.take_profit_1)}</td>
+            <td class="price tp">${formatNumber(signal.take_profit_2)}</td>
+            <td><span class="rr-chip">${signal.risk_reward}</span></td>
+            <td><span class="state-badge ${signal.status}">${signal.status}</span></td>
+            <td class="text-secondary-emphasis">${humanTime(signal.created_at)}</td>
+          </tr>
+        `).join("");
+      }
+
+      function renderMarket(market) {
+        document.getElementById("monitored-pairs").textContent = `${market.length} activos`;
+        document.getElementById("market-grid").innerHTML = market.map((item) => {
+          const direction = item.direction || "neutral";
+          const label = direction === "bullish" ? "bullish" : direction === "bearish" ? "bearish" : "neutral";
+          const arrow = direction === "bullish" ? "UP" : direction === "bearish" ? "DOWN" : "FLAT";
+          return `
+            <article class="market-card">
+              <div class="market-symbol">
+                <strong>${item.symbol}</strong>
+                <span class="trend ${direction}">${arrow} ${label}</span>
+              </div>
+              <div class="market-price">$${formatNumber(item.price)}</div>
+              <div class="metric-sub">${formatPercent(item.change_percent)} 24h · ${item.source}</div>
+            </article>
+          `;
+        }).join("");
+      }
+
+      function renderLogs(logs) {
+        document.getElementById("logs-terminal").innerHTML = logs.map((log) => `
+          <div class="log-line">
+            <span class="log-time">[${humanTime(log.timestamp)}]</span>
+            <span class="log-${log.level || "info"}">${log.event}</span>
+            <span>${log.symbol ? `${log.symbol}: ` : ""}${log.message}</span>
+          </div>
+        `).join("");
+      }
+
+      async function refreshDashboard() {
+        refreshChip.textContent = "Sincronizando...";
+        document.body.classList.add("loading");
+        try {
+          const [stats, signals, market, logs] = await Promise.all([
+            fetchJson("/api/stats"),
+            fetchJson("/api/signals"),
+            fetchJson("/api/market"),
+            fetchJson("/api/logs")
+          ]);
+          renderStats(stats);
+          renderSignals(signals);
+          renderMarket(market);
+          renderLogs(logs);
+          setOnline(true);
+          refreshChip.textContent = `Actualizado ${new Date().toLocaleTimeString("es-ES")}`;
+        } catch (error) {
+          console.error(error);
+          setOnline(false);
+          refreshChip.textContent = "Error de sincronizacion";
+        } finally {
+          document.body.classList.remove("loading");
+        }
+      }
+
+      updateClock();
+      setInterval(updateClock, 1000);
+      refreshDashboard();
+      setInterval(refreshDashboard, refreshMs);
+    </script>
+  </body>
+</html>
