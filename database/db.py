@@ -22,20 +22,37 @@ def init_db() -> None:
                 take_profit_1 REAL NOT NULL,
                 take_profit_2 REAL NOT NULL,
                 risk_reward TEXT NOT NULL,
+                strategy TEXT NOT NULL DEFAULT 'swing_long_v1',
                 status TEXT NOT NULL CHECK(status IN ('active', 'won', 'lost', 'cancelled')),
                 reasons TEXT NOT NULL,
                 created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
+        _ensure_strategy_column(conn)
         conn.execute(
             """
             CREATE INDEX IF NOT EXISTS idx_signals_symbol_status_created
             ON signals(symbol, status, created_at)
             """
         )
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_signals_symbol_strategy_status_created
+            ON signals(symbol, strategy, status, created_at)
+            """
+        )
         conn.commit()
     logger.info("SQLite database ready at %s", DATABASE_PATH)
+
+
+def _ensure_strategy_column(conn: sqlite3.Connection) -> None:
+    columns = conn.execute("PRAGMA table_info(signals)").fetchall()
+    column_names = {column["name"] for column in columns}
+    if "strategy" not in column_names:
+        conn.execute("ALTER TABLE signals ADD COLUMN strategy TEXT NOT NULL DEFAULT 'swing_long_v1'")
+        conn.execute("UPDATE signals SET strategy = 'swing_long_v1' WHERE strategy IS NULL OR strategy = ''")
+        logger.info("Migrated signals table with strategy column.")
 
 
 @contextmanager
@@ -46,4 +63,3 @@ def get_connection():
         yield conn
     finally:
         conn.close()
-

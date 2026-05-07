@@ -7,6 +7,7 @@ from config.settings import EMA_PROXIMITY_PERCENT, ENTRY_INTERVAL
 
 
 logger = logging.getLogger(__name__)
+STRATEGY_ID = "swing_long_v1"
 
 
 def add_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -95,6 +96,7 @@ def evaluate_swing_long_v1(symbol: str, daily_df: pd.DataFrame, entry_df: pd.Dat
 
     return {
         "symbol": symbol,
+        "strategy": STRATEGY_ID,
         "timeframe": ENTRY_INTERVAL,
         "entry_price": round(price, 8),
         "stop_loss": round(stop_loss, 8),
@@ -109,4 +111,3 @@ def evaluate_swing_long_v1(symbol: str, daily_df: pd.DataFrame, entry_df: pd.Dat
             "Volumen actual superior al promedio de las últimas 20 velas",
         ],
     }
-

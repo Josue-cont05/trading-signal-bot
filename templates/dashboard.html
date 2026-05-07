@@ -264,7 +264,7 @@
       }
 
       .signals-table {
-        min-width: 1020px;
+        min-width: 1140px;
         margin: 0;
         color: var(--text);
         vertical-align: middle;
@@ -311,6 +311,7 @@
         content: "";
       }
 
+      .strategy-chip,
       .timeframe-chip,
       .state-badge,
       .rr-chip,
@@ -329,6 +330,18 @@
         border: 1px solid rgba(59, 130, 246, 0.35);
         background: rgba(59, 130, 246, 0.12);
         color: #bfdbfe;
+      }
+
+      .strategy-chip {
+        border: 1px solid rgba(34, 197, 94, 0.28);
+        background: rgba(34, 197, 94, 0.09);
+        color: #bbf7d0;
+      }
+
+      .strategy-chip.scalping {
+        border-color: rgba(245, 158, 11, 0.32);
+        background: rgba(245, 158, 11, 0.1);
+        color: #fde68a;
       }
 
       .rr-chip {
@@ -641,7 +654,42 @@
             <div class="metric-icon">L</div>
             <p class="metric-label">Ultima señal</p>
             <p id="stat-latest-symbol" class="metric-value" style="font-size: 1.35rem;">{% if stats.latest_signal %}{{ stats.latest_signal.symbol }}{% else %}--{% endif %}</p>
-            <div id="stat-latest-sub" class="metric-sub">{% if stats.latest_signal %}{{ stats.latest_signal.timeframe|upper }} · {{ stats.latest_signal.status }}{% else %}Sin señales aun{% endif %}</div>
+            <div id="stat-latest-sub" class="metric-sub">{% if stats.latest_signal %}{{ stats.latest_signal.strategy }} · {{ stats.latest_signal.timeframe|upper }} · {{ stats.latest_signal.status }}{% else %}Sin señales aun{% endif %}</div>
+          </article>
+        </div>
+      </section>
+
+      <section class="row g-3 g-xl-4 mt-1 fade-in" aria-label="Estadisticas por estrategia">
+        <div class="col-6 col-xl-3">
+          <article class="metric-card h-100">
+            <div class="metric-icon" style="color: var(--blue); background: rgba(59, 130, 246, 0.12);">SW</div>
+            <p class="metric-label">Total swing</p>
+            <p id="stat-swing-total" class="metric-value">{{ stats.by_strategy.swing_long_v1.total }}</p>
+            <div class="metric-sub">Swing LONG V1</div>
+          </article>
+        </div>
+        <div class="col-6 col-xl-3">
+          <article class="metric-card h-100">
+            <div class="metric-icon" style="color: var(--yellow); background: rgba(245, 158, 11, 0.12);">SC</div>
+            <p class="metric-label">Total scalping</p>
+            <p id="stat-scalping-total" class="metric-value">{{ stats.by_strategy.scalping_long_v1.total }}</p>
+            <div class="metric-sub">Scalping LONG V1</div>
+          </article>
+        </div>
+        <div class="col-6 col-xl-3">
+          <article class="metric-card h-100">
+            <div class="metric-icon" style="color: var(--green); background: rgba(34, 197, 94, 0.12);">A</div>
+            <p class="metric-label">Activas swing</p>
+            <p id="stat-swing-active" class="metric-value">{{ stats.by_strategy.swing_long_v1.active }}</p>
+            <div class="metric-sub">Sin duplicar por 24h</div>
+          </article>
+        </div>
+        <div class="col-6 col-xl-3">
+          <article class="metric-card h-100">
+            <div class="metric-icon" style="color: var(--green); background: rgba(34, 197, 94, 0.12);">A</div>
+            <p class="metric-label">Activas scalping</p>
+            <p id="stat-scalping-active" class="metric-value">{{ stats.by_strategy.scalping_long_v1.active }}</p>
+            <div class="metric-sub">Señales 15m abiertas</div>
           </article>
         </div>
       </section>
@@ -681,6 +729,7 @@
             <thead>
               <tr>
                 <th>Par</th>
+                <th>Estrategia</th>
                 <th>Timeframe</th>
                 <th>Entrada</th>
                 <th>Stop Loss</th>
@@ -695,6 +744,7 @@
               {% for signal in signals %}
                 <tr>
                   <td><span class="symbol-badge">{{ signal.symbol }}</span></td>
+                  <td><span class="strategy-chip {% if signal.strategy == 'scalping_long_v1' %}scalping{% endif %}">{% if signal.strategy == 'scalping_long_v1' %}Scalping LONG V1{% else %}Swing LONG V1{% endif %}</span></td>
                   <td><span class="timeframe-chip">{{ signal.timeframe|upper }}</span></td>
                   <td class="price">{{ "%.4f"|format(signal.entry_price) }}</td>
                   <td class="price stop">{{ "%.4f"|format(signal.stop_loss) }}</td>
@@ -764,6 +814,18 @@
         return date.toLocaleString("es-ES");
       }
 
+      function strategyLabel(strategy) {
+        const labels = {
+          swing_long_v1: "Swing LONG V1",
+          scalping_long_v1: "Scalping LONG V1"
+        };
+        return labels[strategy] || strategy || "Swing LONG V1";
+      }
+
+      function strategyClass(strategy) {
+        return strategy === "scalping_long_v1" ? "scalping" : "";
+      }
+
       function updateClock() {
         currentTime.textContent = new Date().toLocaleString("es-ES", {
           hour: "2-digit",
@@ -792,10 +854,17 @@
         document.getElementById("stat-won").textContent = stats.won ?? 0;
         document.getElementById("stat-lost").textContent = stats.lost ?? 0;
         document.getElementById("stat-win-rate").textContent = `${Math.round(stats.win_rate || 0)}%`;
+        const byStrategy = stats.by_strategy || {};
+        const swing = byStrategy.swing_long_v1 || { total: 0, active: 0 };
+        const scalping = byStrategy.scalping_long_v1 || { total: 0, active: 0 };
+        document.getElementById("stat-swing-total").textContent = swing.total ?? 0;
+        document.getElementById("stat-scalping-total").textContent = scalping.total ?? 0;
+        document.getElementById("stat-swing-active").textContent = swing.active ?? 0;
+        document.getElementById("stat-scalping-active").textContent = scalping.active ?? 0;
 
         const latest = stats.latest_signal;
         document.getElementById("stat-latest-symbol").textContent = latest ? latest.symbol : "--";
-        document.getElementById("stat-latest-sub").textContent = latest ? `${String(latest.timeframe).toUpperCase()} · ${latest.status}` : "Sin señales aun";
+        document.getElementById("stat-latest-sub").textContent = latest ? `${strategyLabel(latest.strategy)} · ${String(latest.timeframe).toUpperCase()} · ${latest.status}` : "Sin señales aun";
         document.getElementById("last-scan").textContent = stats.last_scan ? humanTime(stats.last_scan) : "Pendiente";
       }
 
@@ -807,6 +876,7 @@
         tbody.innerHTML = signals.map((signal) => `
           <tr>
             <td><span class="symbol-badge">${signal.symbol}</span></td>
+            <td><span class="strategy-chip ${strategyClass(signal.strategy)}">${strategyLabel(signal.strategy)}</span></td>
             <td><span class="timeframe-chip">${String(signal.timeframe).toUpperCase()}</span></td>
             <td class="price">${formatNumber(signal.entry_price)}</td>
             <td class="price stop">${formatNumber(signal.stop_loss)}</td>

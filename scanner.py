@@ -1,11 +1,22 @@
 import logging
 
-from config.settings import DAILY_CANDLE_LIMIT, DAILY_INTERVAL, ENTRY_CANDLE_LIMIT, ENTRY_INTERVAL, SYMBOLS
+from config.settings import (
+    DAILY_CANDLE_LIMIT,
+    DAILY_INTERVAL,
+    ENTRY_CANDLE_LIMIT,
+    ENTRY_INTERVAL,
+    SCALPING_CANDLE_LIMIT,
+    SCALPING_ENTRY_INTERVAL,
+    SYMBOLS,
+)
 from database.db import init_db
 from services.binance_service import BinanceService
 from services.log_service import add_log
 from services.signal_service import SignalService
 from services.telegram_service import TelegramService
+from strategies.scalping_long_v1 import STRATEGY_ID as SCALPING_STRATEGY_ID
+from strategies.scalping_long_v1 import evaluate_scalping_long_v1
+from strategies.swing_long_v1 import STRATEGY_ID as SWING_STRATEGY_ID
 from strategies.swing_long_v1 import evaluate_swing_long_v1
 
 
@@ -23,35 +34,79 @@ def run_scanner() -> None:
     telegram = TelegramService()
 
     logger.info("Starting scanner for symbols: %s", ", ".join(SYMBOLS))
-    add_log("scanner started", f"Scanning {', '.join(SYMBOLS)} on {ENTRY_INTERVAL}.", "info")
+    add_log(
+        "scanner started",
+        f"Scanning {', '.join(SYMBOLS)} on {ENTRY_INTERVAL} and {SCALPING_ENTRY_INTERVAL}.",
+        "info",
+    )
 
     for symbol in SYMBOLS:
-        try:
-            if signals.has_recent_active_signal(symbol):
-                logger.info("%s skipped because a recent active signal already exists.", symbol)
-                add_log("signals skipped", "Recent active signal already exists.", "warning", symbol)
-                continue
-
-            daily_df = binance.get_klines(symbol, DAILY_INTERVAL, DAILY_CANDLE_LIMIT)
-            entry_df = binance.get_klines(symbol, ENTRY_INTERVAL, ENTRY_CANDLE_LIMIT)
-            signal = evaluate_swing_long_v1(symbol, daily_df, entry_df)
-
-            if signal is None:
-                add_log("skipped conditions", "Strategy conditions were not fully met.", "warning", symbol)
-                continue
-
-            signal_id = signals.create_signal(signal)
-            message = signals.format_telegram_message(signal)
-            telegram.send_message(message)
-            logger.info("Signal %s generated for %s.", signal_id, symbol)
-            add_log("signal detected", f"Signal {signal_id} generated with {signal['risk_reward']}.", "success", symbol)
-        except Exception as exc:
-            logger.exception("Scanner failed for %s: %s", symbol, exc)
-            add_log("scanner error", str(exc), "error", symbol)
+        _scan_swing(symbol, binance, signals, telegram)
+        _scan_scalping(symbol, binance, signals, telegram)
 
     logger.info("Scanner finished.")
     add_log("scanner finished", "Scanner cycle completed.", "success")
 
 
+def _scan_swing(
+    symbol: str,
+    binance: BinanceService,
+    signals: SignalService,
+    telegram: TelegramService,
+) -> None:
+    try:
+        if signals.has_recent_active_signal(symbol, SWING_STRATEGY_ID):
+            logger.info("%s swing skipped because a recent active signal already exists.", symbol)
+            add_log("signals skipped", "Recent active swing signal already exists.", "warning", symbol)
+            return
+
+        daily_df = binance.get_klines(symbol, DAILY_INTERVAL, DAILY_CANDLE_LIMIT)
+        entry_df = binance.get_klines(symbol, ENTRY_INTERVAL, ENTRY_CANDLE_LIMIT)
+        signal = evaluate_swing_long_v1(symbol, daily_df, entry_df)
+        _handle_signal_result(symbol, SWING_STRATEGY_ID, signal, signals, telegram)
+    except Exception as exc:
+        logger.exception("Swing scanner failed for %s: %s", symbol, exc)
+        add_log("scanner error", f"swing_long_v1: {exc}", "error", symbol)
+
+
+def _scan_scalping(
+    symbol: str,
+    binance: BinanceService,
+    signals: SignalService,
+    telegram: TelegramService,
+) -> None:
+    try:
+        if signals.has_recent_active_signal(symbol, SCALPING_STRATEGY_ID):
+            logger.info("%s scalping skipped because a recent active signal already exists.", symbol)
+            add_log("signals skipped", "Recent active scalping signal already exists.", "warning", symbol)
+            return
+
+        entry_df = binance.get_klines(symbol, SCALPING_ENTRY_INTERVAL, SCALPING_CANDLE_LIMIT)
+        signal = evaluate_scalping_long_v1(symbol, entry_df)
+        _handle_signal_result(symbol, SCALPING_STRATEGY_ID, signal, signals, telegram)
+    except Exception as exc:
+        logger.exception("Scalping scanner failed for %s: %s", symbol, exc)
+        add_log("scanner error", f"scalping_long_v1: {exc}", "error", symbol)
+
+
+def _handle_signal_result(
+    symbol: str,
+    strategy: str,
+    signal: dict | None,
+    signals: SignalService,
+    telegram: TelegramService,
+) -> None:
+    if signal is None:
+        add_log("skipped conditions", f"{strategy} conditions were not fully met.", "warning", symbol)
+        return
+
+    signal_id = signals.create_signal(signal)
+    message = signals.format_telegram_message(signal)
+    telegram.send_message(message)
+    logger.info("Signal %s generated for %s using %s.", signal_id, symbol, strategy)
+    add_log("signal detected", f"Signal {signal_id} generated by {strategy}.", "success", symbol)
+
+
 if __name__ == "__main__":
     run_scanner()
+
