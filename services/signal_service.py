@@ -7,14 +7,21 @@ from database.db import get_connection, init_db
 
 
 logger = logging.getLogger(__name__)
+ACTIVE_STRATEGY = "swing_long_v3"
+ACTIVE_SYMBOL = "BTCUSDT"
 
 
 class SignalService:
     def __init__(self) -> None:
         init_db()
 
-    def has_recent_active_signal(self, symbol: str, strategy: str = "swing_long_v1") -> bool:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=DUPLICATE_SIGNAL_WINDOW_HOURS)
+    def has_recent_active_signal(
+        self,
+        symbol: str,
+        strategy: str = ACTIVE_STRATEGY,
+        window_hours: int = DUPLICATE_SIGNAL_WINDOW_HOURS,
+    ) -> bool:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
         with get_connection() as conn:
             row = conn.execute(
                 """
@@ -34,7 +41,7 @@ class SignalService:
         reasons = signal.get("reasons", [])
         reasons_text = json.dumps(reasons, ensure_ascii=False)
         created_at = datetime.now(timezone.utc).isoformat()
-        strategy = signal.get("strategy", "swing_long_v1")
+        strategy = signal.get("strategy", ACTIVE_STRATEGY)
 
         with get_connection() as conn:
             cursor = conn.execute(
@@ -116,6 +123,8 @@ class SignalService:
         counts = {row["status"]: int(row["count"]) for row in rows}
         by_strategy = {
             "swing_long_v1": {"total": 0, "active": 0},
+            "swing_long_v2": {"total": 0, "active": 0},
+            "swing_long_v3": {"total": 0, "active": 0},
             "scalping_long_v1": {"total": 0, "active": 0},
         }
         for row in strategy_rows:
@@ -130,24 +139,28 @@ class SignalService:
         won = counts.get("won", 0)
         lost = counts.get("lost", 0)
         closed = won + lost
-        total = sum(counts.values())
         latest_signal = self._normalize_signal(dict(latest)) if latest else None
 
         return {
-            "total": total,
+            "total": sum(counts.values()),
             "active": counts.get("active", 0),
             "won": won,
             "lost": lost,
             "cancelled": counts.get("cancelled", 0),
             "win_rate": round((won / closed) * 100, 2) if closed else 0,
             "latest_signal": latest_signal,
+            "active_strategy": ACTIVE_STRATEGY,
+            "active_symbol": ACTIVE_SYMBOL,
             "by_strategy": by_strategy,
         }
 
     @staticmethod
     def format_telegram_message(signal: dict) -> str:
-        strategy = signal.get("strategy", "swing_long_v1")
+        strategy = signal.get("strategy", ACTIVE_STRATEGY)
         reasons = signal.get("reasons", [])
+        if strategy in {"swing_long_v1", "swing_long_v2", "swing_long_v3"}:
+            return _format_swing_telegram_message(signal, reasons, strategy)
+
         confirmations = "\n".join(f"✅ {reason}" for reason in reasons[:6])
         if not confirmations:
             confirmations = "✅ Condiciones técnicas confirmadas"
@@ -179,7 +192,32 @@ class SignalService:
 def _format_strategy_name(strategy: str) -> str:
     names = {
         "swing_long_v1": "Swing LONG V1",
+        "swing_long_v2": "Swing LONG V2",
+        "swing_long_v3": "Swing LONG V3",
         "scalping_long_v1": "Scalping LONG V1",
     }
     return names.get(strategy, strategy)
 
+
+def _format_swing_telegram_message(signal: dict, reasons: list[str], strategy: str) -> str:
+    score = _find_reason_value(reasons, "Score") or "Score tecnico: n/a"
+    confidence = _find_reason_value(reasons, "Nivel de confianza") or "Nivel de confianza: n/a"
+    return (
+        "🚨 SWING LONG SIGNAL\n\n"
+        f"Estrategia: {_format_strategy_name(strategy)}\n"
+        f"{signal['symbol']}\n"
+        f"{score}\n"
+        f"{confidence}\n"
+        f"Entrada: {signal['entry_price']:.4f}\n"
+        f"SL: {signal['stop_loss']:.4f}\n"
+        f"TP1: {signal['take_profit_1']:.4f}\n"
+        f"TP2: {signal['take_profit_2']:.4f}\n"
+        f"Risk/Reward: {signal['risk_reward']}"
+    )
+
+
+def _find_reason_value(reasons: list[str], prefix: str) -> str | None:
+    for reason in reasons:
+        if reason.startswith(prefix):
+            return reason
+    return None

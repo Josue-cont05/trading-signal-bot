@@ -1,7 +1,9 @@
 import logging
+from threading import Lock
 
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 
+from backtesting.dynamic_backtester import get_last_dynamic_result, run_dynamic_backtest
 from database.db import init_db
 from services.log_service import get_logs
 from services.market_service import get_market_snapshot
@@ -14,6 +16,7 @@ logging.basicConfig(
 )
 
 app = Flask(__name__)
+backtest_lock = Lock()
 
 
 def get_dashboard_signals(limit: int = 50) -> list[dict]:
@@ -64,6 +67,36 @@ def api_market():
 @app.route("/api/logs")
 def api_logs():
     return jsonify(get_logs())
+
+
+@app.route("/backtesting")
+def backtesting_lab():
+    return render_template("backtesting_lab.html")
+
+
+@app.route("/api/backtest/run", methods=["POST"])
+def api_run_backtest():
+    if backtest_lock.locked():
+        return jsonify({"error": "Ya hay un backtest en ejecucion. Espera a que termine."}), 409
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        with backtest_lock:
+            result = run_dynamic_backtest(payload)
+        return jsonify(result)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        logging.exception("Dynamic backtest failed")
+        return jsonify({"error": f"No se pudo ejecutar el backtest: {exc}"}), 500
+
+
+@app.route("/api/backtest/results")
+def api_backtest_results():
+    result = get_last_dynamic_result()
+    if not result:
+        return jsonify({"result": None, "message": "No hay resultados guardados todavia."})
+    return jsonify(result)
 
 
 if __name__ == "__main__":

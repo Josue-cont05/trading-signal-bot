@@ -102,6 +102,16 @@
         white-space: nowrap;
       }
 
+      a.system-pill {
+        text-decoration: none;
+      }
+
+      a.system-pill:hover {
+        border-color: rgba(59, 130, 246, 0.52);
+        background: rgba(59, 130, 246, 0.14);
+        color: #bfdbfe;
+      }
+
       .system-pill.offline {
         border-color: rgba(239, 68, 68, 0.38);
         background: rgba(239, 68, 68, 0.1);
@@ -591,6 +601,7 @@
           </div>
 
           <div class="d-flex flex-wrap align-items-center gap-2 gap-md-3">
+            <a href="/backtesting" class="system-pill">Backtesting Lab</a>
             <div id="system-status" class="system-pill"><span class="online-dot"></span> ONLINE</div>
             <div class="header-stat">
               <span>Ultimo escaneo</span>
@@ -602,7 +613,11 @@
             </div>
             <div class="header-stat">
               <span>Pares monitoreados</span>
-              <strong id="monitored-pairs">3 activos</strong>
+              <strong id="monitored-pairs">1 activo</strong>
+            </div>
+            <div class="header-stat">
+              <span>Estrategia activa</span>
+              <strong id="active-strategy">Swing LONG V3</strong>
             </div>
           </div>
         </div>
@@ -659,37 +674,37 @@
         </div>
       </section>
 
-      <section class="row g-3 g-xl-4 mt-1 fade-in" aria-label="Estadisticas por estrategia">
+      <section class="row g-3 g-xl-4 mt-1 fade-in" aria-label="Estrategia activa">
         <div class="col-6 col-xl-3">
           <article class="metric-card h-100">
             <div class="metric-icon" style="color: var(--blue); background: rgba(59, 130, 246, 0.12);">SW</div>
+            <p class="metric-label">Estrategia activa</p>
+            <p id="active-strategy-card" class="metric-value" style="font-size: 1.25rem;">Swing LONG V3</p>
+            <div class="metric-sub">Modo profesional BTC</div>
+          </article>
+        </div>
+        <div class="col-6 col-xl-3">
+          <article class="metric-card h-100">
+            <div class="metric-icon" style="color: var(--yellow); background: rgba(245, 158, 11, 0.12);">BTC</div>
+            <p class="metric-label">Símbolo activo</p>
+            <p class="metric-value" style="font-size: 1.35rem;">BTCUSDT</p>
+            <div class="metric-sub">ETH/SOL desactivados</div>
+          </article>
+        </div>
+        <div class="col-6 col-xl-3">
+          <article class="metric-card h-100">
+            <div class="metric-icon" style="color: var(--blue); background: rgba(59, 130, 246, 0.12);">4H</div>
             <p class="metric-label">Total swing</p>
-            <p id="stat-swing-total" class="metric-value">{{ stats.by_strategy.swing_long_v1.total }}</p>
-            <div class="metric-sub">Swing LONG V1</div>
+            <p id="stat-swing-total" class="metric-value">{{ stats.by_strategy.swing_long_v3.total }}</p>
+            <div class="metric-sub">Entradas 4H</div>
           </article>
         </div>
         <div class="col-6 col-xl-3">
           <article class="metric-card h-100">
-            <div class="metric-icon" style="color: var(--yellow); background: rgba(245, 158, 11, 0.12);">SC</div>
-            <p class="metric-label">Total scalping</p>
-            <p id="stat-scalping-total" class="metric-value">{{ stats.by_strategy.scalping_long_v1.total }}</p>
-            <div class="metric-sub">Scalping LONG V1</div>
-          </article>
-        </div>
-        <div class="col-6 col-xl-3">
-          <article class="metric-card h-100">
-            <div class="metric-icon" style="color: var(--green); background: rgba(34, 197, 94, 0.12);">A</div>
+            <div class="metric-icon" style="color: var(--green); background: rgba(34, 197, 94, 0.12);">48</div>
             <p class="metric-label">Activas swing</p>
-            <p id="stat-swing-active" class="metric-value">{{ stats.by_strategy.swing_long_v1.active }}</p>
-            <div class="metric-sub">Sin duplicar por 24h</div>
-          </article>
-        </div>
-        <div class="col-6 col-xl-3">
-          <article class="metric-card h-100">
-            <div class="metric-icon" style="color: var(--green); background: rgba(34, 197, 94, 0.12);">A</div>
-            <p class="metric-label">Activas scalping</p>
-            <p id="stat-scalping-active" class="metric-value">{{ stats.by_strategy.scalping_long_v1.active }}</p>
-            <div class="metric-sub">Señales 15m abiertas</div>
+            <p id="stat-swing-active" class="metric-value">{{ stats.by_strategy.swing_long_v3.active }}</p>
+            <div class="metric-sub">Antispam 48h</div>
           </article>
         </div>
       </section>
@@ -731,6 +746,8 @@
                 <th>Par</th>
                 <th>Estrategia</th>
                 <th>Timeframe</th>
+                <th>Score</th>
+                <th>Confianza</th>
                 <th>Entrada</th>
                 <th>Stop Loss</th>
                 <th>TP1</th>
@@ -744,8 +761,10 @@
               {% for signal in signals %}
                 <tr>
                   <td><span class="symbol-badge">{{ signal.symbol }}</span></td>
-                  <td><span class="strategy-chip {% if signal.strategy == 'scalping_long_v1' %}scalping{% endif %}">{% if signal.strategy == 'scalping_long_v1' %}Scalping LONG V1{% else %}Swing LONG V1{% endif %}</span></td>
+                  <td><span class="strategy-chip {% if signal.strategy == 'scalping_long_v1' %}scalping{% endif %}">{% if signal.strategy == 'scalping_long_v1' %}Scalping LONG V1{% elif signal.strategy == 'swing_long_v3' %}Swing LONG V3{% elif signal.strategy == 'swing_long_v2' %}Swing LONG V2{% else %}Swing LONG V1{% endif %}</span></td>
                   <td><span class="timeframe-chip">{{ signal.timeframe|upper }}</span></td>
+                  <td><span class="rr-chip">--</span></td>
+                  <td><span class="rr-chip">--</span></td>
                   <td class="price">{{ "%.4f"|format(signal.entry_price) }}</td>
                   <td class="price stop">{{ "%.4f"|format(signal.stop_loss) }}</td>
                   <td class="price tp">{{ "%.4f"|format(signal.take_profit_1) }}</td>
@@ -817,13 +836,24 @@
       function strategyLabel(strategy) {
         const labels = {
           swing_long_v1: "Swing LONG V1",
+          swing_long_v2: "Swing LONG V2",
+          swing_long_v3: "Swing LONG V3",
           scalping_long_v1: "Scalping LONG V1"
         };
-        return labels[strategy] || strategy || "Swing LONG V1";
+        return labels[strategy] || strategy || "Swing LONG V3";
       }
 
       function strategyClass(strategy) {
         return strategy === "scalping_long_v1" ? "scalping" : "";
+      }
+
+      function reasonValue(signal, prefix) {
+        const reasons = Array.isArray(signal.reasons) ? signal.reasons : [];
+        const prefixes = Array.isArray(prefix) ? prefix : [prefix];
+        const match = reasons.find((reason) => prefixes.some((item) => String(reason).startsWith(item)));
+        if (!match) return "--";
+        const parts = String(match).split(":");
+        return parts.length > 1 ? parts.slice(1).join(":").trim() : match;
       }
 
       function updateClock() {
@@ -855,12 +885,11 @@
         document.getElementById("stat-lost").textContent = stats.lost ?? 0;
         document.getElementById("stat-win-rate").textContent = `${Math.round(stats.win_rate || 0)}%`;
         const byStrategy = stats.by_strategy || {};
-        const swing = byStrategy.swing_long_v1 || { total: 0, active: 0 };
-        const scalping = byStrategy.scalping_long_v1 || { total: 0, active: 0 };
+        const swing = byStrategy.swing_long_v3 || { total: 0, active: 0 };
         document.getElementById("stat-swing-total").textContent = swing.total ?? 0;
-        document.getElementById("stat-scalping-total").textContent = scalping.total ?? 0;
         document.getElementById("stat-swing-active").textContent = swing.active ?? 0;
-        document.getElementById("stat-scalping-active").textContent = scalping.active ?? 0;
+        document.getElementById("active-strategy").textContent = strategyLabel(stats.active_strategy || "swing_long_v3");
+        document.getElementById("active-strategy-card").textContent = strategyLabel(stats.active_strategy || "swing_long_v3");
 
         const latest = stats.latest_signal;
         document.getElementById("stat-latest-symbol").textContent = latest ? latest.symbol : "--";
@@ -878,6 +907,8 @@
             <td><span class="symbol-badge">${signal.symbol}</span></td>
             <td><span class="strategy-chip ${strategyClass(signal.strategy)}">${strategyLabel(signal.strategy)}</span></td>
             <td><span class="timeframe-chip">${String(signal.timeframe).toUpperCase()}</span></td>
+            <td><span class="rr-chip">${reasonValue(signal, ["Score técnico", "Score tecnico", "Score"])}</span></td>
+            <td><span class="rr-chip">${reasonValue(signal, "Nivel de confianza")}</span></td>
             <td class="price">${formatNumber(signal.entry_price)}</td>
             <td class="price stop">${formatNumber(signal.stop_loss)}</td>
             <td class="price tp">${formatNumber(signal.take_profit_1)}</td>
@@ -890,7 +921,7 @@
       }
 
       function renderMarket(market) {
-        document.getElementById("monitored-pairs").textContent = `${market.length} activos`;
+        document.getElementById("monitored-pairs").textContent = `${market.length} activo${market.length === 1 ? "" : "s"}`;
         document.getElementById("market-grid").innerHTML = market.map((item) => {
           const direction = item.direction || "neutral";
           const label = direction === "bullish" ? "bullish" : direction === "bearish" ? "bearish" : "neutral";

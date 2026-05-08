@@ -1,0 +1,952 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#0f172a">
+    <title>Backtesting Lab | Trading Signal Bot</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0f172a;
+        --card: #111827;
+        --border: #1f2937;
+        --border-soft: rgba(148, 163, 184, 0.18);
+        --text: #e5e7eb;
+        --muted: #94a3b8;
+        --green: #22c55e;
+        --red: #ef4444;
+        --yellow: #f59e0b;
+        --blue: #3b82f6;
+        --gray: #64748b;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        background:
+          radial-gradient(circle at 12% 0%, rgba(59, 130, 246, 0.18), transparent 26rem),
+          radial-gradient(circle at 90% 4%, rgba(34, 197, 94, 0.12), transparent 24rem),
+          linear-gradient(180deg, #101a31 0%, var(--bg) 44%, #08111f 100%);
+        color: var(--text);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      }
+
+      .app-shell {
+        width: min(1440px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 24px 0;
+      }
+
+      .lab-header,
+      .panel,
+      .metric-card {
+        border: 1px solid var(--border);
+        background: rgba(17, 24, 39, 0.88);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.26);
+        backdrop-filter: blur(16px);
+      }
+
+      .lab-header,
+      .panel,
+      .metric-card {
+        border-radius: 18px;
+      }
+
+      .lab-header {
+        padding: 18px;
+      }
+
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 46px;
+        height: 46px;
+        border: 1px solid rgba(59, 130, 246, 0.42);
+        border-radius: 14px;
+        background: linear-gradient(145deg, rgba(59, 130, 246, 0.2), rgba(34, 197, 94, 0.12));
+        color: #bfdbfe;
+        font-weight: 900;
+        box-shadow: 0 0 24px rgba(59, 130, 246, 0.18);
+      }
+
+      .eyebrow {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.78rem;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0;
+        color: #f8fafc;
+        font-size: clamp(1.6rem, 3vw, 2.4rem);
+        font-weight: 800;
+        letter-spacing: 0;
+      }
+
+      .system-pill,
+      .state-badge,
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 34px;
+        padding: 6px 11px;
+        border-radius: 999px;
+        font-size: 0.8rem;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+
+      .system-pill {
+        border: 1px solid rgba(34, 197, 94, 0.38);
+        background: rgba(34, 197, 94, 0.1);
+        color: #bbf7d0;
+        text-decoration: none;
+      }
+
+      .system-pill:hover {
+        border-color: rgba(59, 130, 246, 0.52);
+        background: rgba(59, 130, 246, 0.14);
+        color: #bfdbfe;
+      }
+
+      .online-dot {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.12), 0 0 18px rgba(34, 197, 94, 0.9);
+        animation: pulseGlow 1.9s ease-in-out infinite;
+      }
+
+      .panel {
+        overflow: hidden;
+      }
+
+      .panel-heading {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 18px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .panel-title {
+        margin: 0;
+        color: #f8fafc;
+        font-size: 1rem;
+        font-weight: 800;
+      }
+
+      .panel-subtitle {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .form-wrap {
+        padding: 18px;
+      }
+
+      .section-title {
+        margin: 8px 0 12px;
+        color: #f8fafc;
+        font-size: 0.88rem;
+        font-weight: 850;
+        text-transform: uppercase;
+      }
+
+      .form-label {
+        color: #cbd5e1;
+        font-size: 0.82rem;
+        font-weight: 750;
+      }
+
+      .form-control,
+      .form-select {
+        min-height: 42px;
+        border: 1px solid var(--border-soft);
+        background-color: rgba(15, 23, 42, 0.86);
+        color: #f8fafc;
+      }
+
+      .form-control:focus,
+      .form-select:focus {
+        border-color: rgba(59, 130, 246, 0.65);
+        box-shadow: 0 0 0 0.22rem rgba(59, 130, 246, 0.16);
+      }
+
+      .form-check-input {
+        border-color: rgba(148, 163, 184, 0.34);
+        background-color: #0b1120;
+      }
+
+      .form-check-input:checked {
+        border-color: var(--green);
+        background-color: var(--green);
+      }
+
+      .switch-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 44px;
+        padding: 10px 12px;
+        border: 1px solid var(--border-soft);
+        border-radius: 14px;
+        background: rgba(15, 23, 42, 0.72);
+      }
+
+      .metric-card {
+        position: relative;
+        overflow: hidden;
+        min-height: 126px;
+        padding: 18px;
+        transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+      }
+
+      .metric-card:hover {
+        transform: translateY(-4px);
+        border-color: rgba(59, 130, 246, 0.48);
+        box-shadow: 0 26px 72px rgba(0, 0, 0, 0.36);
+      }
+
+      .metric-label {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.82rem;
+      }
+
+      .metric-value {
+        margin: 8px 0 0;
+        color: #f8fafc;
+        font-size: clamp(1.35rem, 2.3vw, 1.9rem);
+        font-weight: 850;
+        line-height: 1;
+      }
+
+      .metric-sub {
+        margin-top: 9px;
+        color: var(--muted);
+        font-size: 0.79rem;
+      }
+
+      .btn-run {
+        min-height: 46px;
+        border: 1px solid rgba(34, 197, 94, 0.5);
+        background: linear-gradient(135deg, rgba(34, 197, 94, 0.94), rgba(59, 130, 246, 0.86));
+        color: #06111f;
+        font-weight: 900;
+      }
+
+      .btn-run:hover {
+        color: #06111f;
+        filter: brightness(1.06);
+      }
+
+      .btn-run:disabled {
+        opacity: 0.65;
+      }
+
+      .chip {
+        border: 1px solid rgba(59, 130, 246, 0.35);
+        background: rgba(59, 130, 246, 0.12);
+        color: #bfdbfe;
+      }
+
+      .chip.green {
+        border-color: rgba(34, 197, 94, 0.38);
+        background: rgba(34, 197, 94, 0.11);
+        color: #bbf7d0;
+      }
+
+      .chip.red {
+        border-color: rgba(239, 68, 68, 0.38);
+        background: rgba(239, 68, 68, 0.12);
+        color: #fecaca;
+      }
+
+      .chip.yellow {
+        border-color: rgba(245, 158, 11, 0.36);
+        background: rgba(245, 158, 11, 0.11);
+        color: #fde68a;
+      }
+
+      .table-responsive {
+        scrollbar-color: #334155 #0b1120;
+      }
+
+      .table-responsive::-webkit-scrollbar,
+      .config-box::-webkit-scrollbar {
+        height: 10px;
+        width: 10px;
+      }
+
+      .table-responsive::-webkit-scrollbar-track,
+      .config-box::-webkit-scrollbar-track {
+        background: #0b1120;
+      }
+
+      .table-responsive::-webkit-scrollbar-thumb,
+      .config-box::-webkit-scrollbar-thumb {
+        background: #334155;
+        border-radius: 999px;
+      }
+
+      .trades-table {
+        min-width: 1180px;
+        margin: 0;
+        color: var(--text);
+      }
+
+      .trades-table thead th {
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border);
+        background: rgba(15, 23, 42, 0.94);
+        color: #94a3b8;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .trades-table tbody td {
+        padding: 15px 18px;
+        border-color: rgba(31, 41, 55, 0.72);
+        background: rgba(17, 24, 39, 0.58);
+        color: #dbe4f0;
+        font-size: 0.88rem;
+      }
+
+      .trades-table tbody tr:hover td {
+        background: rgba(30, 41, 59, 0.7);
+      }
+
+      .state-badge.win {
+        border: 1px solid rgba(34, 197, 94, 0.38);
+        background: rgba(34, 197, 94, 0.11);
+        color: #bbf7d0;
+      }
+
+      .state-badge.loss {
+        border: 1px solid rgba(239, 68, 68, 0.38);
+        background: rgba(239, 68, 68, 0.12);
+        color: #fecaca;
+      }
+
+      .state-badge.open {
+        border: 1px solid rgba(245, 158, 11, 0.36);
+        background: rgba(245, 158, 11, 0.11);
+        color: #fde68a;
+      }
+
+      .price {
+        color: #f8fafc;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+
+      .positive {
+        color: #bbf7d0;
+      }
+
+      .negative {
+        color: #fecaca;
+      }
+
+      .config-box {
+        max-height: 420px;
+        overflow: auto;
+        margin: 0;
+        padding: 18px;
+        background: #020617;
+        color: #d1fae5;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+        font-size: 0.78rem;
+      }
+
+      .alert-risk {
+        display: none;
+        border: 1px solid rgba(239, 68, 68, 0.38);
+        border-radius: 16px;
+        background: rgba(239, 68, 68, 0.12);
+        color: #fecaca;
+        padding: 14px 16px;
+      }
+
+      .alert-risk.show {
+        display: block;
+      }
+
+      .empty-state {
+        padding: 42px 20px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .fade-in {
+        animation: fadeIn 520ms ease both;
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes pulseGlow {
+        0%,
+        100% {
+          transform: scale(1);
+          box-shadow: 0 0 0 6px rgba(34, 197, 94, 0.1), 0 0 18px rgba(34, 197, 94, 0.75);
+        }
+        50% {
+          transform: scale(1.18);
+          box-shadow: 0 0 0 9px rgba(34, 197, 94, 0.06), 0 0 26px rgba(34, 197, 94, 1);
+        }
+      }
+
+      @media (max-width: 767px) {
+        .app-shell {
+          width: min(100% - 20px, 1440px);
+          padding: 14px 0;
+        }
+
+        .lab-header,
+        .panel,
+        .metric-card {
+          border-radius: 14px;
+        }
+
+        .panel-heading {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="lab-header fade-in">
+        <div class="d-flex flex-column flex-xl-row align-items-xl-center justify-content-between gap-4">
+          <div class="d-flex align-items-center gap-3">
+            <div class="brand-mark">BT</div>
+            <div>
+              <p class="eyebrow">Strategy research center</p>
+              <h1>Backtesting Lab</h1>
+            </div>
+          </div>
+
+          <div class="d-flex flex-wrap align-items-center gap-2 gap-md-3">
+            <a href="/" class="system-pill">Dashboard</a>
+            <span class="system-pill"><span class="online-dot"></span> SIMULATION ONLY</span>
+            <span id="run-state" class="chip">Ready</span>
+          </div>
+        </div>
+      </header>
+
+      <section class="row g-3 g-xl-4 mt-3 fade-in">
+        <div class="col-12 col-xl-4">
+          <form id="backtest-form" class="panel">
+            <div class="panel-heading">
+              <div>
+                <h2 class="panel-title">Configurar Estrategia</h2>
+                <p class="panel-subtitle">Prueba reglas LONG sobre historico de Binance.</p>
+              </div>
+            </div>
+
+            <div class="form-wrap">
+              <h3 class="section-title">Mercado</h3>
+              <div class="row g-3">
+                <div class="col-6">
+                  <label class="form-label" for="symbol">Symbol</label>
+                  <select id="symbol" class="form-select">
+                    <option>BTCUSDT</option>
+                    <option>ETHUSDT</option>
+                    <option>SOLUSDT</option>
+                  </select>
+                </div>
+                <div class="col-6">
+                  <label class="form-label" for="timeframe">Timeframe</label>
+                  <select id="timeframe" class="form-select">
+                    <option>15m</option>
+                    <option>1h</option>
+                    <option selected>4h</option>
+                    <option>1d</option>
+                  </select>
+                </div>
+                <div class="col-12">
+                  <label class="form-label" for="lookback_days">Lookback</label>
+                  <select id="lookback_days" class="form-select">
+                    <option>90</option>
+                    <option selected>180</option>
+                    <option>365</option>
+                  </select>
+                </div>
+              </div>
+
+              <h3 class="section-title mt-4">Capital y Costos</h3>
+              <div class="row g-3">
+                <div class="col-6">
+                  <label class="form-label" for="initial_balance">Balance inicial</label>
+                  <input id="initial_balance" type="number" class="form-control" value="1000" min="1" step="50">
+                </div>
+                <div class="col-6">
+                  <label class="form-label" for="risk_per_trade_percent">Riesgo %</label>
+                  <input id="risk_per_trade_percent" type="number" class="form-control" value="1" min="0.1" max="10" step="0.1">
+                </div>
+                <div class="col-6">
+                  <label class="form-label" for="commission_percent">Comision %</label>
+                  <input id="commission_percent" type="number" class="form-control" value="0.1" min="0" max="2" step="0.01">
+                </div>
+                <div class="col-6">
+                  <label class="form-label" for="slippage_percent">Slippage %</label>
+                  <input id="slippage_percent" type="number" class="form-control" value="0.05" min="0" max="2" step="0.01">
+                </div>
+              </div>
+
+              <h3 class="section-title mt-4">Filtros</h3>
+              <div class="d-grid gap-2">
+                <label class="switch-row">
+                  <span>EMA filter</span>
+                  <input id="use_ema_filter" class="form-check-input" type="checkbox" checked>
+                </label>
+                <div class="row g-3">
+                  <div class="col-6">
+                    <label class="form-label" for="ema_fast_period">EMA fast</label>
+                    <input id="ema_fast_period" type="number" class="form-control" value="21" min="2" max="200">
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label" for="ema_slow_period">EMA slow</label>
+                    <input id="ema_slow_period" type="number" class="form-control" value="50" min="3" max="300">
+                  </div>
+                </div>
+                <label class="switch-row">
+                  <span>RSI filter</span>
+                  <input id="use_rsi_filter" class="form-check-input" type="checkbox" checked>
+                </label>
+                <div class="row g-3">
+                  <div class="col-4">
+                    <label class="form-label" for="rsi_period">RSI</label>
+                    <input id="rsi_period" type="number" class="form-control" value="14" min="2" max="100">
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label" for="rsi_min">Min</label>
+                    <input id="rsi_min" type="number" class="form-control" value="45" min="1" max="99">
+                  </div>
+                  <div class="col-4">
+                    <label class="form-label" for="rsi_max">Max</label>
+                    <input id="rsi_max" type="number" class="form-control" value="60" min="1" max="99">
+                  </div>
+                </div>
+                <label class="switch-row">
+                  <span>RSI recovering</span>
+                  <input id="require_rsi_recovering" class="form-check-input" type="checkbox" checked>
+                </label>
+                <label class="switch-row">
+                  <span>Volume filter</span>
+                  <input id="use_volume_filter" class="form-check-input" type="checkbox" checked>
+                </label>
+                <div class="row g-3">
+                  <div class="col-6">
+                    <label class="form-label" for="volume_avg_period">Vol avg</label>
+                    <input id="volume_avg_period" type="number" class="form-control" value="20" min="2" max="200">
+                  </div>
+                  <div class="col-6">
+                    <label class="form-label" for="volume_multiplier">Multiplier</label>
+                    <input id="volume_multiplier" type="number" class="form-control" value="1" min="0.1" max="5" step="0.05">
+                  </div>
+                </div>
+                <label class="switch-row">
+                  <span>MACD filter</span>
+                  <input id="use_macd_filter" class="form-check-input" type="checkbox" checked>
+                </label>
+                <label class="switch-row">
+                  <span>MACD histogram improving</span>
+                  <input id="require_macd_histogram_improving" class="form-check-input" type="checkbox" checked>
+                </label>
+                <label class="switch-row">
+                  <span>ATR filter</span>
+                  <input id="use_atr_filter" class="form-check-input" type="checkbox">
+                </label>
+              </div>
+
+              <h3 class="section-title mt-4">Score y Salida</h3>
+              <div class="row g-3">
+                <div class="col-6">
+                  <label class="form-label" for="minimum_score">Minimum score</label>
+                  <input id="minimum_score" type="number" class="form-control" value="4" min="1" max="6">
+                </div>
+                <div class="col-6">
+                  <label class="form-label" for="take_profit_rr">TP RR</label>
+                  <input id="take_profit_rr" type="number" class="form-control" value="2" min="0.5" max="10" step="0.1">
+                </div>
+                <div class="col-6">
+                  <label class="form-label" for="atr_period">ATR period</label>
+                  <input id="atr_period" type="number" class="form-control" value="14" min="2" max="100">
+                </div>
+                <div class="col-6">
+                  <label class="form-label" for="atr_stop_multiplier">ATR stop x</label>
+                  <input id="atr_stop_multiplier" type="number" class="form-control" value="1.5" min="0.1" max="10" step="0.1">
+                </div>
+                <div class="col-6">
+                  <label class="form-label" for="recent_low_period">Recent low</label>
+                  <input id="recent_low_period" type="number" class="form-control" value="10" min="2" max="100">
+                </div>
+                <div class="col-6">
+                  <label class="form-label" for="stop_loss_mode">Stop mode</label>
+                  <select id="stop_loss_mode" class="form-select">
+                    <option>recent_low</option>
+                    <option>atr</option>
+                    <option selected>recent_low_or_atr</option>
+                  </select>
+                </div>
+              </div>
+
+              <input id="ema_condition" type="hidden" value="fast_above_slow">
+              <button id="run-button" type="submit" class="btn btn-run w-100 mt-4">
+                <span id="run-spinner" class="spinner-border spinner-border-sm me-2 d-none" aria-hidden="true"></span>
+                Run Backtest
+              </button>
+              <div id="error-box" class="alert alert-danger mt-3 d-none" role="alert"></div>
+            </div>
+          </form>
+        </div>
+
+        <div class="col-12 col-xl-8">
+          <div id="drawdown-alert" class="alert-risk mb-3">
+            Max drawdown supera 20%. Revisa riesgo por operacion, filtros y relacion TP/SL.
+          </div>
+
+          <section class="row g-3" aria-label="Resultados">
+            <div class="col-6 col-lg-3">
+              <article class="metric-card h-100">
+                <p class="metric-label">Total trades</p>
+                <p id="metric-total_trades" class="metric-value">--</p>
+                <div class="metric-sub">Operaciones simuladas</div>
+              </article>
+            </div>
+            <div class="col-6 col-lg-3">
+              <article class="metric-card h-100">
+                <p class="metric-label">Win rate</p>
+                <p id="metric-win_rate" class="metric-value">--</p>
+                <div class="metric-sub">Wins / cerradas</div>
+              </article>
+            </div>
+            <div class="col-6 col-lg-3">
+              <article class="metric-card h-100">
+                <p class="metric-label">Net P/L</p>
+                <p id="metric-net_profit_loss" class="metric-value">--</p>
+                <div class="metric-sub">Despues de costos</div>
+              </article>
+            </div>
+            <div class="col-6 col-lg-3">
+              <article class="metric-card h-100">
+                <p class="metric-label">Balance final</p>
+                <p id="metric-balance_final" class="metric-value">--</p>
+                <div class="metric-sub">Capital simulado</div>
+              </article>
+            </div>
+            <div class="col-6 col-lg-3">
+              <article class="metric-card h-100">
+                <p class="metric-label">Profit factor</p>
+                <p id="metric-profit_factor" class="metric-value">--</p>
+                <div class="metric-sub">Gross profit / loss</div>
+              </article>
+            </div>
+            <div class="col-6 col-lg-3">
+              <article class="metric-card h-100">
+                <p class="metric-label">Expectancy</p>
+                <p id="metric-expectancy" class="metric-value">--</p>
+                <div class="metric-sub">Promedio por trade</div>
+              </article>
+            </div>
+            <div class="col-6 col-lg-3">
+              <article class="metric-card h-100">
+                <p class="metric-label">Max drawdown</p>
+                <p id="metric-max_drawdown_percent" class="metric-value">--</p>
+                <div class="metric-sub" id="metric-max_drawdown">--</div>
+              </article>
+            </div>
+            <div class="col-6 col-lg-3">
+              <article class="metric-card h-100">
+                <p class="metric-label">Streaks</p>
+                <p id="metric-streaks" class="metric-value">--</p>
+                <div class="metric-sub">Wins / losses max</div>
+              </article>
+            </div>
+          </section>
+
+          <section class="panel mt-3">
+            <div class="panel-heading">
+              <div>
+                <h2 class="panel-title">Trades Detallados</h2>
+                <p class="panel-subtitle">Entrada, salida, score y condiciones cumplidas.</p>
+              </div>
+              <span id="trades-count" class="chip">0 trades</span>
+            </div>
+            <div class="table-responsive">
+              <table class="table trades-table">
+                <thead>
+                  <tr>
+                    <th>Entrada</th>
+                    <th>Salida</th>
+                    <th>Symbol</th>
+                    <th>TF</th>
+                    <th>Entry</th>
+                    <th>SL</th>
+                    <th>TP</th>
+                    <th>Result</th>
+                    <th>P/L</th>
+                    <th>Balance</th>
+                    <th>Score</th>
+                    <th>Condiciones</th>
+                  </tr>
+                </thead>
+                <tbody id="trades-body"></tbody>
+              </table>
+            </div>
+            <div id="trades-empty" class="empty-state">Aun no hay trades para mostrar.</div>
+          </section>
+
+          <section class="panel mt-3">
+            <div class="panel-heading">
+              <div>
+                <h2 class="panel-title">Configuracion Usada</h2>
+                <p class="panel-subtitle">Snapshot exacto enviado al backtester dinamico.</p>
+              </div>
+              <span id="created-at" class="chip">Sin resultado</span>
+            </div>
+            <pre id="config-box" class="config-box">{}</pre>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      const form = document.getElementById("backtest-form");
+      const runButton = document.getElementById("run-button");
+      const runSpinner = document.getElementById("run-spinner");
+      const runState = document.getElementById("run-state");
+      const errorBox = document.getElementById("error-box");
+      let isRunning = false;
+
+      const numberFields = [
+        "initial_balance",
+        "risk_per_trade_percent",
+        "commission_percent",
+        "slippage_percent",
+        "volume_multiplier",
+        "take_profit_rr",
+        "atr_stop_multiplier"
+      ];
+      const integerFields = [
+        "lookback_days",
+        "ema_fast_period",
+        "ema_slow_period",
+        "rsi_period",
+        "volume_avg_period",
+        "atr_period",
+        "minimum_score",
+        "recent_low_period"
+      ];
+      const booleanFields = [
+        "use_ema_filter",
+        "use_rsi_filter",
+        "require_rsi_recovering",
+        "use_volume_filter",
+        "use_macd_filter",
+        "require_macd_histogram_improving",
+        "use_atr_filter"
+      ];
+
+      function value(id) {
+        return document.getElementById(id).value;
+      }
+
+      function checked(id) {
+        return document.getElementById(id).checked;
+      }
+
+      function buildConfig() {
+        const config = {
+          symbol: value("symbol"),
+          timeframe: value("timeframe"),
+          ema_condition: value("ema_condition"),
+          stop_loss_mode: value("stop_loss_mode"),
+          rsi_min: Number(value("rsi_min")),
+          rsi_max: Number(value("rsi_max"))
+        };
+        numberFields.forEach((field) => config[field] = Number(value(field)));
+        integerFields.forEach((field) => config[field] = Number.parseInt(value(field), 10));
+        booleanFields.forEach((field) => config[field] = checked(field));
+        return config;
+      }
+
+      function setLoading(active) {
+        isRunning = active;
+        runButton.disabled = active;
+        runSpinner.classList.toggle("d-none", !active);
+        if (active) {
+          runState.textContent = "Running...";
+          runState.className = "chip yellow";
+        }
+      }
+
+      function showError(message) {
+        errorBox.textContent = message;
+        errorBox.classList.remove("d-none");
+      }
+
+      function clearError() {
+        errorBox.textContent = "";
+        errorBox.classList.add("d-none");
+      }
+
+      function money(value) {
+        const numeric = Number(value || 0);
+        return numeric.toLocaleString("en-US", {
+          style: "currency",
+          currency: "USD",
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      }
+
+      function price(value) {
+        return Number(value || 0).toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 4
+        });
+      }
+
+      function pct(value) {
+        return `${Number(value || 0).toFixed(2)}%`;
+      }
+
+      function shortDate(value) {
+        if (!value) return "--";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return value;
+        return date.toLocaleString("es-ES", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
+      }
+
+      function renderMetrics(metrics) {
+        document.getElementById("metric-total_trades").textContent = metrics.total_trades ?? 0;
+        document.getElementById("metric-win_rate").textContent = pct(metrics.win_rate);
+        document.getElementById("metric-net_profit_loss").textContent = money(metrics.net_profit_loss);
+        document.getElementById("metric-net_profit_loss").className = `metric-value ${Number(metrics.net_profit_loss || 0) >= 0 ? "positive" : "negative"}`;
+        document.getElementById("metric-balance_final").textContent = money(metrics.balance_final);
+        document.getElementById("metric-profit_factor").textContent = Number(metrics.profit_factor || 0).toFixed(2);
+        document.getElementById("metric-expectancy").textContent = money(metrics.expectancy);
+        document.getElementById("metric-max_drawdown_percent").textContent = pct(metrics.max_drawdown_percent);
+        document.getElementById("metric-max_drawdown").textContent = money(metrics.max_drawdown);
+        document.getElementById("metric-streaks").textContent = `${metrics.max_consecutive_wins || 0}/${metrics.max_consecutive_losses || 0}`;
+
+        const drawdownAlert = document.getElementById("drawdown-alert");
+        drawdownAlert.classList.toggle("show", Number(metrics.max_drawdown_percent || 0) > 20);
+      }
+
+      function renderTrades(trades) {
+        const tbody = document.getElementById("trades-body");
+        const empty = document.getElementById("trades-empty");
+        const count = document.getElementById("trades-count");
+        count.textContent = `${trades.length} trade${trades.length === 1 ? "" : "s"}`;
+        empty.classList.toggle("d-none", trades.length > 0);
+
+        tbody.innerHTML = trades.map((trade) => {
+          const pnl = Number(trade.pnl || 0);
+          const conditions = Array.isArray(trade.conditions_met) ? trade.conditions_met.join(", ") : "";
+          return `
+            <tr>
+              <td>${shortDate(trade.entry_time)}</td>
+              <td>${shortDate(trade.exit_time)}</td>
+              <td>${trade.symbol}</td>
+              <td><span class="chip">${String(trade.timeframe).toUpperCase()}</span></td>
+              <td class="price">${price(trade.entry_price)}</td>
+              <td class="price negative">${price(trade.stop_loss)}</td>
+              <td class="price positive">${price(trade.take_profit)}</td>
+              <td><span class="state-badge ${trade.result}">${trade.result}</span></td>
+              <td class="${pnl >= 0 ? "positive" : "negative"}">${money(pnl)}</td>
+              <td class="price">${money(trade.balance_after_trade)}</td>
+              <td><span class="chip">${trade.score}</span></td>
+              <td>${conditions}</td>
+            </tr>
+          `;
+        }).join("");
+      }
+
+      function renderResult(result) {
+        const metrics = result.metrics || {};
+        const trades = result.trades || [];
+        renderMetrics(metrics);
+        renderTrades(trades);
+        document.getElementById("config-box").textContent = JSON.stringify(result.config || {}, null, 2);
+        document.getElementById("created-at").textContent = result.created_at ? shortDate(result.created_at) : "Sin resultado";
+      }
+
+      async function loadLastResult() {
+        try {
+          const response = await fetch("/api/backtest/results", { cache: "no-store" });
+          const data = await response.json();
+          if (data && data.metrics) {
+            renderResult(data);
+          }
+        } catch (error) {
+          console.warn("No previous backtest result available", error);
+        }
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (isRunning) return;
+
+        clearError();
+        setLoading(true);
+        try {
+          const response = await fetch("/api/backtest/run", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(buildConfig())
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || "Backtest failed");
+          renderResult(data);
+          runState.textContent = "Completed";
+          runState.className = "chip green";
+        } catch (error) {
+          showError(error.message);
+          runState.textContent = "Error";
+          runState.className = "chip red";
+        } finally {
+          setLoading(false);
+        }
+      });
+
+      loadLastResult();
+    </script>
+  </body>
+</html>
