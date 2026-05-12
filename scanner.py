@@ -6,14 +6,14 @@ from config.settings import (
     SYMBOLS,
 )
 from database.db import init_db
-from services.binance_service import BinanceService
 from services.log_service import add_log
 from services.signal_service import SignalService
 from services.telegram_service import TelegramService
-from strategies.swing_long_v9 import MAX_SIGNALS_PER_MONTH
-from strategies.swing_long_v9 import STRATEGY_ID as ACTIVE_STRATEGY_ID
-from strategies.swing_long_v9 import TIMEFRAME
-from strategies.swing_long_v9 import evaluate_swing_long_v9
+from services.twelvedata_service import TwelveDataService
+from strategies.smc_v1 import MAX_SIGNALS_PER_MONTH
+from strategies.smc_v1 import STRATEGY_ID as ACTIVE_STRATEGY_ID
+from strategies.smc_v1 import TIMEFRAME
+from strategies.smc_v1 import evaluate_smc_v1
 
 
 logging.basicConfig(
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 def run_scanner() -> None:
     init_db()
-    binance = BinanceService()
+    binance = TwelveDataService()
     signals = SignalService()
     telegram = TelegramService()
 
@@ -46,7 +46,7 @@ def run_scanner() -> None:
 
 def _process_symbol(
     symbol: str,
-    binance: BinanceService,
+    binance: TwelveDataService,
     signals: SignalService,
     telegram: TelegramService,
 ) -> None:
@@ -86,7 +86,7 @@ def _process_symbol(
 
         daily_df = binance.get_klines(symbol, DAILY_INTERVAL, DAILY_CANDLE_LIMIT)
         entry_df = binance.get_klines(symbol, TIMEFRAME, 180)
-        signal = evaluate_swing_long_v9(symbol, daily_df, entry_df)
+        signal = evaluate_smc_v1(symbol, daily_df, entry_df)
 
         if signal is None:
             logger.info("%s Swing LONG V9 skipped because LONG conditions were not met.", symbol)

@@ -1,0 +1,200 @@
+import logging
+from datetime import datetime, timezone
+
+import numpy as np
+import pandas as pd
+
+
+logger = logging.getLogger(__name__)
+STRATEGY_ID = "smc_v1"
+STRATEGY_NAME = "SMC V1 - BOS + Imbalance + YFC"
+TIMEFRAME = "4h"
+DAILY_TIMEFRAME = "1d"
+MAX_SIGNALS_PER_MONTH = 3
+MAX_STOP_DISTANCE_PERCENT = 3.0
+MIN_RR = 3.0
+VALID_SYMBOLS = ["EURUSD", "GBPUSD", "XAUUSD"]
+
+
+def add_daily_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    data = df.copy()
+    data["ema_50"] = data["close"].ewm(span=50, adjust=False).mean()
+    data["ema_200"] = data["close"].ewm(span=200, adjust=False).mean()
+    return data
+
+
+def add_entry_indicators(df: pd.DataFrame) -> pd.DataFrame:
+    data = df.copy()
+    data["atr_14"] = calculate_atr(data, period=14)
+    return data
+
+
+def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    previous_close = df["close"].shift(1)
+    true_range = pd.concat(
+        [
+            df["high"] - df["low"],
+            (df["high"] - previous_close).abs(),
+            (df["low"] - previous_close).abs(),
+        ],
+        axis=1,
+    ).max(axis=1)
+    return true_range.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+
+
+def evaluate_smc_v1(symbol: str, daily_df: pd.DataFrame, entry_df: pd.DataFrame) -> dict | None:
+    if symbol not in VALID_SYMBOLS:
+        logger.info("%s skipped because SMC V1 supports only %s.", symbol, ", ".join(VALID_SYMBOLS))
+        return None
+    if len(daily_df) < 220 or len(entry_df) < 60:
+        logger.warning("Not enough candles to evaluate %s smc_v1.", symbol)
+        return None
+
+    daily = add_daily_indicators(daily_df).dropna()
+    entry = add_entry_indicators(entry_df).dropna()
+    if len(daily) < 2 or len(entry) < 60:
+        logger.warning("Indicator calculation produced insufficient smc_v1 data for %s.", symbol)
+        return None
+
+    return evaluate_smc_v1_prepared(symbol, daily, entry)
+
+
+def evaluate_smc_v1_prepared(symbol: str, daily: pd.DataFrame, entry: pd.DataFrame) -> dict | None:
+    if symbol not in VALID_SYMBOLS or len(daily) < 2 or len(entry) < 60:
+        return None
+
+    daily_last = daily.iloc[-1]
+    daily_ema_50 = float(daily_last["ema_50"])
+    daily_ema_200 = float(daily_last["ema_200"])
+    daily_close = float(daily_last["close"])
+    macro_valid = daily_ema_50 > daily_ema_200 and daily_close > daily_ema_50
+
+    current_price = float(entry.iloc[-1]["close"])
+    bos_detected = detect_bos(entry)
+    imbalance_level = find_unmitigated_imbalance(entry, current_price)
+    yfc_low = find_yfc(entry)
+    session_valid = is_valid_session()
+    atr = float(entry.iloc[-1]["atr_14"])
+
+    logger.info(
+        "%s smc_v1 check. macro_valid=%s bos=%s imbalance=%s yfc=%s session=%s atr=%.5f",
+        symbol,
+        macro_valid,
+        bos_detected,
+        imbalance_level is not None,
+        yfc_low is not None,
+        session_valid,
+        atr,
+    )
+
+    if not macro_valid:
+        return None
+    if not bos_detected:
+        return None
+    if imbalance_level is None:
+        return None
+    if yfc_low is None:
+        return None
+    if not session_valid:
+        return None
+    if atr <= 0 or not np.isfinite(atr):
+        return None
+
+    entry_price = current_price
+    stop_loss = yfc_low - (atr * 0.25)
+    risk = entry_price - stop_loss
+    stop_distance_percent = (risk / entry_price) * 100 if entry_price else 0.0
+
+    if stop_distance_percent > MAX_STOP_DISTANCE_PERCENT:
+        return None
+    if risk <= 0:
+        return None
+
+    take_profit_1 = entry_price + (risk * 1.5)
+    take_profit_2 = entry_price + (risk * 3.0)
+    rr_actual = (take_profit_2 - entry_price) / risk
+    if rr_actual < MIN_RR:
+        return None
+
+    return {
+        "symbol": symbol,
+        "strategy": STRATEGY_ID,
+        "timeframe": TIMEFRAME,
+        "entry_price": round(entry_price, 5),
+        "stop_loss": round(stop_loss, 5),
+        "take_profit_1": round(take_profit_1, 5),
+        "take_profit_2": round(take_profit_2, 5),
+        "risk_reward": "TP1 50% 1:1.5 / TP2 50% 1:3",
+        "status": "active",
+        "stop_type": "yfc_low",
+        "reasons": [
+            f"Estrategia: {STRATEGY_NAME}",
+            f"Símbolo: {symbol}",
+            "BOS detectado en 4H",
+            f"Imbalance no mitigado en: {imbalance_level:.5f}",
+            f"YFC low: {yfc_low:.5f}",
+            f"Stop distance: {stop_distance_percent:.2f}%",
+            f"ATR: {atr:.5f}",
+            f"RR efectivo: 1:{rr_actual:.1f}",
+        ],
+    }
+
+
+def detect_bos(entry_df: pd.DataFrame) -> bool:
+    """Detect a break above the prior 10-candle higher high inside the last 30 candles."""
+    if len(entry_df) < 11:
+        return False
+
+    lookback = entry_df.tail(30).reset_index(drop=True)
+    current_price = float(lookback.iloc[-1]["close"])
+    start_index = max(10, len(lookback) - 20)
+
+    for index in range(start_index, len(lookback)):
+        previous_high = float(lookback.iloc[index - 10 : index]["high"].max())
+        candle_high = float(lookback.iloc[index]["high"])
+        if candle_high > previous_high and current_price > previous_high:
+            return True
+
+    return False
+
+
+def find_unmitigated_imbalance(entry_df: pd.DataFrame, current_price: float) -> float | None:
+    """Return the midpoint of the most recent bullish imbalance in the last 50 candles."""
+    if len(entry_df) < 3:
+        return None
+
+    lookback = entry_df.tail(50).reset_index(drop=True)
+    for index in range(len(lookback) - 3, -1, -1):
+        first_high = float(lookback.iloc[index]["high"])
+        third_low = float(lookback.iloc[index + 2]["low"])
+        if first_high < third_low and current_price > first_high:
+            return (first_high + third_low) / 2
+
+    return None
+
+
+def find_yfc(entry_df: pd.DataFrame) -> float | None:
+    """Find the low of the most recent refined bullish foundational candle."""
+    if len(entry_df) < 3:
+        return None
+
+    lookback = entry_df.tail(20).reset_index(drop=True)
+    for index in range(len(lookback) - 2, 0, -1):
+        candle = lookback.iloc[index]
+        next_candle = lookback.iloc[index + 1]
+        is_bearish_yfc = float(candle["close"]) < float(candle["open"])
+        engulfed_by_next = float(next_candle["close"]) > float(candle["open"])
+        has_near_imbalance = float(lookback.iloc[index - 1]["high"]) < float(next_candle["low"])
+
+        if is_bearish_yfc and engulfed_by_next and has_near_imbalance:
+            return float(candle["low"])
+
+    return None
+
+
+def is_valid_session() -> bool:
+    """Allow entries only during London or New York killzone windows in UTC."""
+    current_hour = datetime.now(timezone.utc).hour
+    london_session = 7 <= current_hour < 10
+    new_york_session = 13 <= current_hour < 16
+    return london_session or new_york_session
