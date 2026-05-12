@@ -60,7 +60,12 @@ def evaluate_smc_v1(symbol: str, daily_df: pd.DataFrame, entry_df: pd.DataFrame)
     return evaluate_smc_v1_prepared(symbol, daily, entry)
 
 
-def evaluate_smc_v1_prepared(symbol: str, daily: pd.DataFrame, entry: pd.DataFrame) -> dict | None:
+def evaluate_smc_v1_prepared(
+    symbol: str,
+    daily: pd.DataFrame,
+    entry: pd.DataFrame,
+    ignore_session: bool = False,
+) -> dict | None:
     if symbol not in VALID_SYMBOLS or len(daily) < 2 or len(entry) < 60:
         return None
 
@@ -69,7 +74,7 @@ def evaluate_smc_v1_prepared(symbol: str, daily: pd.DataFrame, entry: pd.DataFra
     daily_ema_200 = float(daily_last["ema_200"])
     daily_close = float(daily_last["close"])
     current_price = float(entry.iloc[-1]["close"])
-    session_valid = is_valid_session()
+    session_valid = is_valid_session() if not ignore_session else True
     atr = float(entry.iloc[-1]["atr_14"])
 
     macro_valid_long = daily_ema_50 > daily_ema_200 and daily_close > daily_ema_50

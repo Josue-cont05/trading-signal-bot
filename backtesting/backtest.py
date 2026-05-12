@@ -84,7 +84,7 @@ def _run_smc_v1_backtest(
             index += 1
             continue
 
-        signal = evaluate_smc_v1_prepared(symbol, daily_slice, entry_slice)
+        signal = evaluate_smc_v1_prepared(symbol, daily_slice, entry_slice, ignore_session=True)
         if not signal:
             index += 1
             continue
