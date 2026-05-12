@@ -7,7 +7,7 @@ from database.db import get_connection, init_db
 
 
 logger = logging.getLogger(__name__)
-ACTIVE_STRATEGY = "swing_long_v3"
+ACTIVE_STRATEGY = "swing_long_v9"
 ACTIVE_SYMBOL = "BTCUSDT"
 
 
@@ -81,6 +81,37 @@ class SignalService:
         logger.info("Signal %s saved for %s using %s.", signal_id, signal["symbol"], strategy)
         return signal_id
 
+    def count_signals_today(self, symbol: str, strategy: str = ACTIVE_STRATEGY) -> int:
+        start_of_day = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM signals
+                WHERE symbol = ?
+                  AND strategy = ?
+                  AND datetime(created_at) >= datetime(?)
+                """,
+                (symbol, strategy, start_of_day.isoformat()),
+            ).fetchone()
+        return int(row["count"]) if row else 0
+
+    def count_signals_this_month(self, symbol: str, strategy: str = ACTIVE_STRATEGY) -> int:
+        now = datetime.now(timezone.utc)
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM signals
+                WHERE symbol = ?
+                  AND strategy = ?
+                  AND datetime(created_at) >= datetime(?)
+                """,
+                (symbol, strategy, start_of_month.isoformat()),
+            ).fetchone()
+        return int(row["count"]) if row else 0
+
     def get_latest_signals(self, limit: int = 50) -> list[dict]:
         with get_connection() as conn:
             rows = conn.execute(
@@ -125,7 +156,15 @@ class SignalService:
             "swing_long_v1": {"total": 0, "active": 0},
             "swing_long_v2": {"total": 0, "active": 0},
             "swing_long_v3": {"total": 0, "active": 0},
+            "swing_long_v4": {"total": 0, "active": 0},
+            "swing_long_v5": {"total": 0, "active": 0},
+            "swing_long_v6": {"total": 0, "active": 0},
+            "swing_long_v7": {"total": 0, "active": 0},
+            "swing_long_v9": {"total": 0, "active": 0},
             "scalping_long_v1": {"total": 0, "active": 0},
+            "luis_breakout_v1": {"total": 0, "active": 0},
+            "crt_breakout_v1": {"total": 0, "active": 0},
+            "smc_orderblock_v1": {"total": 0, "active": 0},
         }
         for row in strategy_rows:
             strategy = row["strategy"] or "swing_long_v1"
@@ -158,7 +197,15 @@ class SignalService:
     def format_telegram_message(signal: dict) -> str:
         strategy = signal.get("strategy", ACTIVE_STRATEGY)
         reasons = signal.get("reasons", [])
-        if strategy in {"swing_long_v1", "swing_long_v2", "swing_long_v3"}:
+        if strategy == "swing_long_v9":
+            return _format_swing_v9_telegram_message(signal, reasons)
+        if strategy == "smc_orderblock_v1":
+            return _format_smc_orderblock_telegram_message(signal, reasons)
+        if strategy == "crt_breakout_v1":
+            return _format_crt_breakout_telegram_message(signal, reasons)
+        if strategy == "luis_breakout_v1":
+            return _format_luis_breakout_telegram_message(signal, reasons)
+        if strategy in {"swing_long_v1", "swing_long_v2", "swing_long_v3", "swing_long_v4", "swing_long_v5", "swing_long_v6", "swing_long_v7"}:
             return _format_swing_telegram_message(signal, reasons, strategy)
 
         confirmations = "\n".join(f"✅ {reason}" for reason in reasons[:6])
@@ -194,9 +241,84 @@ def _format_strategy_name(strategy: str) -> str:
         "swing_long_v1": "Swing LONG V1",
         "swing_long_v2": "Swing LONG V2",
         "swing_long_v3": "Swing LONG V3",
+        "swing_long_v4": "Swing LONG V4",
+        "swing_long_v5": "Swing LONG V5",
+        "swing_long_v6": "Swing LONG V6",
+        "swing_long_v7": "Swing LONG V7",
+        "swing_long_v9": "Swing LONG V9 Diario + 4H",
         "scalping_long_v1": "Scalping LONG V1",
+        "luis_breakout_v1": "Luis Breakout V1",
+        "crt_breakout_v1": "CRT Breakout V1",
+        "smc_orderblock_v1": "SMC Order Block V1",
     }
     return names.get(strategy, strategy)
+
+
+def _format_swing_v9_telegram_message(signal: dict, reasons: list[str]) -> str:
+    score = _find_reason_value(reasons, "Score 4H") or "Score 4H: n/a"
+    confidence = _find_reason_value(reasons, "Nivel de confianza") or "Nivel de confianza: n/a"
+    macro = _find_reason_value(reasons, "Filtro macro") or "Filtro macro diario válido"
+    return (
+        "🚨 SWING LONG V9 D1 + 4H SIGNAL\n\n"
+        f"Par: {signal['symbol']}\n"
+        f"Temporalidad: {signal['timeframe'].upper()}\n"
+        f"{macro}\n"
+        f"{score}\n"
+        f"{confidence}\n"
+        f"Entrada: {signal['entry_price']:.4f}\n"
+        f"SL: {signal['stop_loss']:.4f}\n"
+        f"TP1: {signal['take_profit_1']:.4f}\n"
+        f"TP2: {signal['take_profit_2']:.4f}\n"
+        f"Risk/Reward: {signal['risk_reward']}"
+    )
+
+
+def _format_smc_orderblock_telegram_message(signal: dict, reasons: list[str]) -> str:
+    confirmations = "\n".join(f"✅ {reason}" for reason in reasons[1:8])
+    return (
+        "🚨 SMC ORDER BLOCK LONG SIGNAL\n\n"
+        f"Par: {signal['symbol']}\n"
+        f"Temporalidad: {signal['timeframe'].upper()}\n"
+        f"Entrada: {signal['entry_price']:.4f}\n"
+        f"SL: {signal['stop_loss']:.4f}\n"
+        f"TP1: {signal['take_profit_1']:.4f}\n"
+        f"TP2: {signal['take_profit_2']:.4f}\n"
+        f"Risk/Reward: {signal['risk_reward']}\n\n"
+        "Confirmaciones:\n"
+        f"{confirmations}"
+    )
+
+
+def _format_crt_breakout_telegram_message(signal: dict, reasons: list[str]) -> str:
+    confirmations = "\n".join(f"✅ {reason}" for reason in reasons[1:8])
+    return (
+        "🚨 CRT BREAKOUT LONG SIGNAL\n\n"
+        f"Par: {signal['symbol']}\n"
+        f"Temporalidad: {signal['timeframe'].upper()}\n"
+        f"Entrada: {signal['entry_price']:.4f}\n"
+        f"SL: {signal['stop_loss']:.4f}\n"
+        f"TP1: {signal['take_profit_1']:.4f}\n"
+        f"TP2: {signal['take_profit_2']:.4f}\n"
+        f"Risk/Reward: {signal['risk_reward']}\n\n"
+        "Confirmaciones:\n"
+        f"{confirmations}"
+    )
+
+
+def _format_luis_breakout_telegram_message(signal: dict, reasons: list[str]) -> str:
+    confirmations = "\n".join(f"✅ {reason}" for reason in reasons[1:7])
+    return (
+        "🚨 LUIS BREAKOUT LONG SIGNAL\n\n"
+        f"Par: {signal['symbol']}\n"
+        f"Temporalidad: {signal['timeframe'].upper()}\n"
+        f"Entrada: {signal['entry_price']:.4f}\n"
+        f"SL: {signal['stop_loss']:.4f}\n"
+        f"TP1: {signal['take_profit_1']:.4f}\n"
+        f"TP2: {signal['take_profit_2']:.4f}\n"
+        f"Risk/Reward: {signal['risk_reward']}\n\n"
+        "Confirmaciones:\n"
+        f"{confirmations}"
+    )
 
 
 def _format_swing_telegram_message(signal: dict, reasons: list[str], strategy: str) -> str:
