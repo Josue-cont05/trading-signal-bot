@@ -1,5 +1,6 @@
 import itertools
 import logging
+import time
 from collections import Counter, defaultdict
 
 import numpy as np
@@ -39,12 +40,35 @@ def run_sensitivity_analysis() -> None:
     service = TwelveDataService()
     combinations = _filter_combinations()
     all_results = []
+    logger.info("Downloading data for all symbols...")
+    symbol_data = {}
+    for symbol in SYMBOLS:
+        try:
+            daily_df = service.get_historical_klines(symbol, DAILY_INTERVAL, total_limit=DAILY_HISTORY_LIMIT)
+            entry_df = service.get_historical_klines(symbol, TIMEFRAME, total_limit=ENTRY_HISTORY_LIMIT)
+            daily_prepared = add_daily_indicators(daily_df).dropna().reset_index(drop=True)
+            entry_prepared = add_entry_indicators(entry_df).dropna().reset_index(drop=True)
+            symbol_data[symbol] = {
+                "daily": daily_prepared,
+                "entry": entry_prepared,
+            }
+            logger.info("Data ready for %s", symbol)
+        except Exception as exc:
+            logger.error("Failed to download data for %s: %s", symbol, exc)
+        time.sleep(15)
 
     for active_filters in combinations:
         logger.info("Testing filters: %s", "+".join(active_filters))
         for symbol in SYMBOLS:
+            if symbol not in symbol_data:
+                continue
             try:
-                result = _run_combination(service, symbol, active_filters)
+                result = _run_combination(
+                    symbol,
+                    symbol_data[symbol]["daily"],
+                    symbol_data[symbol]["entry"],
+                    active_filters,
+                )
                 all_results.append(result)
                 logger.info(
                     "%s %s trades=%s pf=%s wr=%s",
@@ -64,12 +88,12 @@ def _filter_combinations() -> list[list[str]]:
     return [list(combo) for size in range(2, 5) for combo in itertools.combinations(FILTERS, size)]
 
 
-def _run_combination(service: TwelveDataService, symbol: str, active_filters: list[str]) -> dict:
-    daily_df = service.get_historical_klines(symbol, DAILY_INTERVAL, total_limit=DAILY_HISTORY_LIMIT)
-    entry_df = service.get_historical_klines(symbol, TIMEFRAME, total_limit=ENTRY_HISTORY_LIMIT)
-    daily_prepared = add_daily_indicators(daily_df).dropna().reset_index(drop=True)
-    entry_prepared = add_entry_indicators(entry_df).dropna().reset_index(drop=True)
-
+def _run_combination(
+    symbol: str,
+    daily_prepared: pd.DataFrame,
+    entry_prepared: pd.DataFrame,
+    active_filters: list[str],
+) -> dict:
     trades = []
     index = 30
     signals_by_month: dict[str, int] = {}
