@@ -99,6 +99,16 @@ def _run_smc_v1_backtest(
         index = trade["exit_index"] + 1 if trade["exit_index"] is not None else len(entry_df)
 
     metrics = calculate_metrics(trades, INITIAL_CAPITAL)
+    if trades:
+        first_trade = trades[0].get("entry_time", "N/A")
+        last_trade = trades[-1].get("entry_time", "N/A")
+        logger.info(
+            "%s backtest period: %s → %s (%s trades)",
+            symbol,
+            first_trade,
+            last_trade,
+            len(trades),
+        )
     logger.info("%s SMC V1 trades=%s win_rate=%s%%", symbol, metrics["total_trades"], metrics["win_rate"])
     return {
         "symbol": symbol,
