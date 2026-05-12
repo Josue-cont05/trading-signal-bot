@@ -2,10 +2,9 @@ import logging
 import time
 from datetime import datetime, timezone
 
-import requests
-
-from config.settings import BINANCE_BASE_URL, REQUEST_TIMEOUT_SECONDS, SYMBOLS
+from config.settings import SYMBOLS
 from services.log_service import add_log
+from services.twelvedata_service import TwelveDataService
 
 
 logger = logging.getLogger(__name__)
@@ -23,9 +22,9 @@ def get_market_snapshot(symbols: list[str] | None = None, ttl_seconds: int = 45)
 
     for symbol in symbols:
         try:
-            payload = _fetch_ticker(symbol)
-            last_price = float(payload["lastPrice"])
-            change_percent = float(payload["priceChangePercent"])
+            payload = _fetch_price(symbol)
+            last_price = float(payload["price"])
+            change_percent = 0.0
             market.append(
                 {
                     "symbol": symbol,
@@ -33,12 +32,12 @@ def get_market_snapshot(symbols: list[str] | None = None, ttl_seconds: int = 45)
                     "change_percent": change_percent,
                     "direction": "bullish" if change_percent >= 0 else "bearish",
                     "updated_at": datetime.now(timezone.utc).isoformat(),
-                    "source": "binance",
+                    "source": "twelvedata",
                 }
             )
         except Exception as exc:
             logger.warning("Market fallback for %s: %s", symbol, exc)
-            add_log("market fallback", f"Binance data unavailable for {symbol}: {exc}", "warning", symbol)
+            add_log("market fallback", f"TwelveData unavailable for {symbol}: {exc}", "warning", symbol)
             market.append(_fallback_market(symbol))
 
     _cache["data"] = market
@@ -46,28 +45,18 @@ def get_market_snapshot(symbols: list[str] | None = None, ttl_seconds: int = 45)
     return market
 
 
-def _fetch_ticker(symbol: str) -> dict:
-    response = requests.get(
-        f"{BINANCE_BASE_URL.rstrip('/')}/api/v3/ticker/24hr",
-        params={"symbol": symbol},
-        timeout=REQUEST_TIMEOUT_SECONDS,
-    )
-    response.raise_for_status()
-    return response.json()
+def _fetch_price(symbol: str) -> dict:
+    service = TwelveDataService()
+    price = service.get_price(symbol)
+    return {"price": price}
 
 
 def _fallback_market(symbol: str) -> dict:
-    fallback_prices = {
-        "BTCUSDT": 0.0,
-        "ETHUSDT": 0.0,
-        "SOLUSDT": 0.0,
-    }
     return {
         "symbol": symbol,
-        "price": fallback_prices.get(symbol, 0.0),
+        "price": 0.0,
         "change_percent": 0.0,
         "direction": "neutral",
         "updated_at": datetime.now(timezone.utc).isoformat(),
         "source": "fallback",
     }
-
