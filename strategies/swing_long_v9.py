@@ -69,6 +69,34 @@ def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
     return true_range.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
 
 
+def find_order_block_stop(entry: pd.DataFrame, atr: float, max_stop_percent: float, price: float) -> float | None:
+    """Find a valid bullish order block stop inside the latest 50 candles."""
+    if len(entry) < 3 or atr <= 0 or price <= 0:
+        return None
+
+    lookback = entry.tail(50).reset_index(drop=True)
+    for index in range(len(lookback) - 3, -1, -1):
+        order_block = lookback.iloc[index]
+        if float(order_block["close"]) >= float(order_block["open"]):
+            continue
+
+        next_candles = lookback.iloc[index + 1 : index + 3]
+        if len(next_candles) < 2:
+            continue
+
+        bullish_impulse = all(float(candle["close"]) > float(candle["open"]) for _, candle in next_candles.iterrows())
+        if not bullish_impulse:
+            continue
+
+        order_block_low = float(order_block["low"])
+        stop_loss = order_block_low - (atr * 0.25)
+        stop_distance_percent = ((price - stop_loss) / price) * 100
+        if stop_loss < price and stop_distance_percent <= max_stop_percent:
+            return stop_loss
+
+    return None
+
+
 def evaluate_swing_long_v9(symbol: str, daily_df: pd.DataFrame, entry_df: pd.DataFrame) -> dict | None:
     if len(daily_df) < 220 or len(entry_df) < 80:
         logger.warning("Not enough candles to evaluate %s swing v9.", symbol)
@@ -131,8 +159,9 @@ def evaluate_swing_long_v9_prepared(symbol: str, daily: pd.DataFrame, entry: pd.
 
     atr_current = float(entry_last["atr_14"])
     atr_percent = (atr_current / price) * 100 if price else 0.0
-    recent_low = float(entry.tail(10)["low"].min())
-    stop_loss = recent_low - (atr_current * 0.5)
+    stop_loss = find_order_block_stop(entry, atr_current, MAX_STOP_DISTANCE_PERCENT, price)
+    if stop_loss is None:
+        return None
     risk = price - stop_loss
     stop_distance_percent = (risk / price) * 100 if price else 0.0
 
@@ -189,6 +218,7 @@ def evaluate_swing_long_v9_prepared(symbol: str, daily: pd.DataFrame, entry: pd.
         "timeframe": TIMEFRAME,
         "entry_price": round(price, 8),
         "stop_loss": round(stop_loss, 8),
+        "stop_type": "order_block",
         "take_profit_1": round(take_profit_1, 8),
         "take_profit_2": round(take_profit_2, 8),
         "risk_reward": "TP1 50% 1:1 / TP2 50% 1:3",
