@@ -1,5 +1,6 @@
 import argparse
 import logging
+import time
 
 import pandas as pd
 
@@ -23,7 +24,7 @@ INITIAL_CAPITAL = 1000.0
 RISK_PER_TRADE = 0.01
 DEFAULT_COMMISSION_PERCENT = 0.002
 DEFAULT_SLIPPAGE_PERCENT = 0.001
-SYMBOLS_TO_TEST = ["EURUSD", "GBPUSD", "XAUUSD"]
+SYMBOLS_TO_TEST = ["XAUUSD"]
 DAILY_HISTORY_LIMIT = 1500
 ENTRY_HISTORY_LIMIT = 3000
 
@@ -41,6 +42,8 @@ def main() -> None:
 
     for symbol in SYMBOLS_TO_TEST:
         results.append(_run_smc_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
+        if symbol != SYMBOLS_TO_TEST[-1]:
+            time.sleep(15)
 
     report = build_report(results, INITIAL_CAPITAL, args.commission_percent, args.slippage_percent)
     save_report(report)
