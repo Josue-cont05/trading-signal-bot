@@ -14,6 +14,7 @@ MAX_SIGNALS_PER_MONTH = 3
 MAX_STOP_DISTANCE_PERCENT = 3.0
 MIN_RR = 3.0
 VALID_SYMBOLS = ["EURUSD", "GBPUSD", "XAUUSD"]
+VALID_DIRECTIONS = ["long", "short"]
 
 
 def add_daily_indicators(df: pd.DataFrame) -> pd.DataFrame:
@@ -67,22 +68,70 @@ def evaluate_smc_v1_prepared(symbol: str, daily: pd.DataFrame, entry: pd.DataFra
     daily_ema_50 = float(daily_last["ema_50"])
     daily_ema_200 = float(daily_last["ema_200"])
     daily_close = float(daily_last["close"])
-    macro_valid = daily_ema_50 > daily_ema_200 and daily_close > daily_ema_50
-
     current_price = float(entry.iloc[-1]["close"])
-    bos_detected = detect_bos(entry)
-    imbalance_level = find_unmitigated_imbalance(entry, current_price)
-    yfc_low = find_yfc(entry)
     session_valid = is_valid_session()
     atr = float(entry.iloc[-1]["atr_14"])
 
+    macro_valid_long = daily_ema_50 > daily_ema_200 and daily_close > daily_ema_50
+    long_signal = _build_signal(
+        symbol=symbol,
+        direction="long",
+        macro_valid=macro_valid_long,
+        entry=entry,
+        current_price=current_price,
+        atr=atr,
+        session_valid=session_valid,
+        daily_ema_50=daily_ema_50,
+        daily_ema_200=daily_ema_200,
+    )
+    if long_signal:
+        return long_signal
+
+    macro_valid_short = daily_ema_50 < daily_ema_200 and daily_close < daily_ema_50
+    return _build_signal(
+        symbol=symbol,
+        direction="short",
+        macro_valid=macro_valid_short,
+        entry=entry,
+        current_price=current_price,
+        atr=atr,
+        session_valid=session_valid,
+        daily_ema_50=daily_ema_50,
+        daily_ema_200=daily_ema_200,
+    )
+
+
+def _build_signal(
+    symbol: str,
+    direction: str,
+    macro_valid: bool,
+    entry: pd.DataFrame,
+    current_price: float,
+    atr: float,
+    session_valid: bool,
+    daily_ema_50: float,
+    daily_ema_200: float,
+) -> dict | None:
+    if direction not in VALID_DIRECTIONS:
+        return None
+
+    is_long = direction == "long"
+    bos_detected = detect_bos(entry) if is_long else detect_bos_short(entry)
+    imbalance_level = (
+        find_unmitigated_imbalance(entry, current_price)
+        if is_long
+        else find_unmitigated_imbalance_short(entry, current_price)
+    )
+    yfc_level = find_yfc(entry) if is_long else find_yfc_short(entry)
+
     logger.info(
-        "%s smc_v1 check. macro_valid=%s bos=%s imbalance=%s yfc=%s session=%s atr=%.5f",
+        "%s smc_v1 %s check. macro_valid=%s bos=%s imbalance=%s yfc=%s session=%s atr=%.5f",
         symbol,
+        direction,
         macro_valid,
         bos_detected,
         imbalance_level is not None,
-        yfc_low is not None,
+        yfc_level is not None,
         session_valid,
         atr,
     )
@@ -93,7 +142,7 @@ def evaluate_smc_v1_prepared(symbol: str, daily: pd.DataFrame, entry: pd.DataFra
         return None
     if imbalance_level is None:
         return None
-    if yfc_low is None:
+    if yfc_level is None:
         return None
     if not session_valid:
         return None
@@ -101,8 +150,21 @@ def evaluate_smc_v1_prepared(symbol: str, daily: pd.DataFrame, entry: pd.DataFra
         return None
 
     entry_price = current_price
-    stop_loss = yfc_low - (atr * 0.25)
-    risk = entry_price - stop_loss
+    if is_long:
+        stop_loss = yfc_level - (atr * 0.25)
+        risk = entry_price - stop_loss
+        take_profit_1 = entry_price + (risk * 1.5)
+        take_profit_2 = entry_price + (risk * 3.0)
+        stop_type = "yfc_low"
+        yfc_reason = f"YFC low: {yfc_level:.5f}"
+    else:
+        stop_loss = yfc_level + (atr * 0.25)
+        risk = stop_loss - entry_price
+        take_profit_1 = entry_price - (risk * 1.5)
+        take_profit_2 = entry_price - (risk * 3.0)
+        stop_type = "yfc_high"
+        yfc_reason = f"YFC high: {yfc_level:.5f}"
+
     stop_distance_percent = (risk / entry_price) * 100 if entry_price else 0.0
 
     if stop_distance_percent > MAX_STOP_DISTANCE_PERCENT:
@@ -110,9 +172,7 @@ def evaluate_smc_v1_prepared(symbol: str, daily: pd.DataFrame, entry: pd.DataFra
     if risk <= 0:
         return None
 
-    take_profit_1 = entry_price + (risk * 1.5)
-    take_profit_2 = entry_price + (risk * 3.0)
-    rr_actual = (take_profit_2 - entry_price) / risk
+    rr_actual = abs(take_profit_2 - entry_price) / risk
     if rr_actual < MIN_RR:
         return None
 
@@ -120,19 +180,22 @@ def evaluate_smc_v1_prepared(symbol: str, daily: pd.DataFrame, entry: pd.DataFra
         "symbol": symbol,
         "strategy": STRATEGY_ID,
         "timeframe": TIMEFRAME,
+        "direction": direction,
         "entry_price": round(entry_price, 5),
         "stop_loss": round(stop_loss, 5),
         "take_profit_1": round(take_profit_1, 5),
         "take_profit_2": round(take_profit_2, 5),
         "risk_reward": "TP1 50% 1:1.5 / TP2 50% 1:3",
         "status": "active",
-        "stop_type": "yfc_low",
+        "stop_type": stop_type,
         "reasons": [
             f"Estrategia: {STRATEGY_NAME}",
+            f"Dirección: {'LONG' if direction == 'long' else 'SHORT'}",
+            f"Filtro macro: EMA50 {'>' if direction == 'long' else '<'} EMA200",
             f"Símbolo: {symbol}",
             "BOS detectado en 4H",
             f"Imbalance no mitigado en: {imbalance_level:.5f}",
-            f"YFC low: {yfc_low:.5f}",
+            yfc_reason,
             f"Stop distance: {stop_distance_percent:.2f}%",
             f"ATR: {atr:.5f}",
             f"RR efectivo: 1:{rr_actual:.1f}",
@@ -158,6 +221,24 @@ def detect_bos(entry_df: pd.DataFrame) -> bool:
     return False
 
 
+def detect_bos_short(entry_df: pd.DataFrame) -> bool:
+    """Detect a break below the prior 10-candle lower low inside the last 30 candles."""
+    if len(entry_df) < 11:
+        return False
+
+    lookback = entry_df.tail(30).reset_index(drop=True)
+    current_price = float(lookback.iloc[-1]["close"])
+    start_index = max(10, len(lookback) - 20)
+
+    for index in range(start_index, len(lookback)):
+        previous_low = float(lookback.iloc[index - 10 : index]["low"].min())
+        candle_low = float(lookback.iloc[index]["low"])
+        if candle_low < previous_low and current_price < previous_low:
+            return True
+
+    return False
+
+
 def find_unmitigated_imbalance(entry_df: pd.DataFrame, current_price: float) -> float | None:
     """Return the midpoint of the most recent bullish imbalance in the last 50 candles."""
     if len(entry_df) < 3:
@@ -169,6 +250,21 @@ def find_unmitigated_imbalance(entry_df: pd.DataFrame, current_price: float) -> 
         third_low = float(lookback.iloc[index + 2]["low"])
         if first_high < third_low and current_price > first_high:
             return (first_high + third_low) / 2
+
+    return None
+
+
+def find_unmitigated_imbalance_short(entry_df: pd.DataFrame, current_price: float) -> float | None:
+    """Return the midpoint of the most recent bearish imbalance in the last 50 candles."""
+    if len(entry_df) < 3:
+        return None
+
+    lookback = entry_df.tail(50).reset_index(drop=True)
+    for index in range(len(lookback) - 3, -1, -1):
+        first_low = float(lookback.iloc[index]["low"])
+        third_high = float(lookback.iloc[index + 2]["high"])
+        if first_low > third_high and current_price < first_low:
+            return (first_low + third_high) / 2
 
     return None
 
@@ -188,6 +284,25 @@ def find_yfc(entry_df: pd.DataFrame) -> float | None:
 
         if is_bearish_yfc and engulfed_by_next and has_near_imbalance:
             return float(candle["low"])
+
+    return None
+
+
+def find_yfc_short(entry_df: pd.DataFrame) -> float | None:
+    """Find the high of the most recent refined bearish foundational candle."""
+    if len(entry_df) < 3:
+        return None
+
+    lookback = entry_df.tail(20).reset_index(drop=True)
+    for index in range(len(lookback) - 2, 0, -1):
+        candle = lookback.iloc[index]
+        next_candle = lookback.iloc[index + 1]
+        is_bullish_yfc = float(candle["close"]) > float(candle["open"])
+        engulfed_by_next = float(next_candle["close"]) < float(candle["open"])
+        has_near_imbalance = float(lookback.iloc[index - 1]["low"]) > float(next_candle["high"])
+
+        if is_bullish_yfc and engulfed_by_next and has_near_imbalance:
+            return float(candle["high"])
 
     return None
 
