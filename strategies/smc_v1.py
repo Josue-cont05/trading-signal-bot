@@ -10,10 +10,10 @@ STRATEGY_ID = "smc_v1"
 STRATEGY_NAME = "SMC V1 - BOS + Imbalance + YFC"
 TIMEFRAME = "4h"
 DAILY_TIMEFRAME = "1d"
-MAX_SIGNALS_PER_MONTH = 3
-MAX_STOP_DISTANCE_PERCENT = 3.0
+MAX_SIGNALS_PER_MONTH = 4
+MAX_STOP_DISTANCE_PERCENT = 4.0
 MIN_RR = 3.0
-VALID_SYMBOLS = ["EURUSD", "GBPUSD", "XAUUSD"]
+VALID_SYMBOLS = ["XAUUSD"]
 VALID_DIRECTIONS = ["long", "short"]
 
 
@@ -127,7 +127,8 @@ def _build_signal(
         if is_long
         else find_unmitigated_imbalance_short(entry, current_price)
     )
-    yfc_level = find_yfc(entry) if is_long else find_yfc_short(entry)
+    yfc_original = find_yfc(entry) if is_long else find_yfc_short(entry)
+    yfc_level = yfc_original
 
     logger.info(
         "%s smc_v1 %s check. macro_valid=%s bos=%s imbalance=%s yfc=%s session=%s atr=%.5f",
@@ -136,7 +137,7 @@ def _build_signal(
         macro_valid,
         bos_detected,
         imbalance_level is not None,
-        yfc_level is not None,
+        yfc_original is not None,
         session_valid,
         atr,
     )
@@ -147,28 +148,34 @@ def _build_signal(
         return None
     if imbalance_level is None:
         return None
-    if yfc_level is None:
-        return None
     if not session_valid:
         return None
     if atr <= 0 or not np.isfinite(atr):
         return None
 
     entry_price = current_price
+    if yfc_level is None:
+        yfc_level = float(entry.tail(10)["low"].min()) if is_long else float(entry.tail(10)["high"].max())
+        yfc_reason = (
+            f"YFC fallback (mínimo reciente): {yfc_level:.5f}"
+            if is_long
+            else f"YFC fallback (máximo reciente): {yfc_level:.5f}"
+        )
+    else:
+        yfc_reason = f"YFC low: {yfc_level:.5f}" if is_long else f"YFC high: {yfc_level:.5f}"
+
     if is_long:
         stop_loss = yfc_level - (atr * 0.25)
         risk = entry_price - stop_loss
         take_profit_1 = entry_price + (risk * 1.5)
         take_profit_2 = entry_price + (risk * 3.0)
         stop_type = "yfc_low"
-        yfc_reason = f"YFC low: {yfc_level:.5f}"
     else:
         stop_loss = yfc_level + (atr * 0.25)
         risk = stop_loss - entry_price
         take_profit_1 = entry_price - (risk * 1.5)
         take_profit_2 = entry_price - (risk * 3.0)
         stop_type = "yfc_high"
-        yfc_reason = f"YFC high: {yfc_level:.5f}"
 
     stop_distance_percent = (risk / entry_price) * 100 if entry_price else 0.0
 
@@ -200,6 +207,7 @@ def _build_signal(
             f"Símbolo: {symbol}",
             "BOS detectado en 4H",
             f"Imbalance no mitigado en: {imbalance_level:.5f}",
+            f"YFC: {'confirmado' if yfc_original is not None else 'fallback'}",
             yfc_reason,
             f"Stop distance: {stop_distance_percent:.2f}%",
             f"ATR: {atr:.5f}",
