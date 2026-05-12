@@ -7,8 +7,8 @@ from database.db import get_connection, init_db
 
 
 logger = logging.getLogger(__name__)
-ACTIVE_STRATEGY = "swing_long_v9"
-ACTIVE_SYMBOL = "BTCUSDT"
+ACTIVE_STRATEGY = "smc_v1"
+ACTIVE_SYMBOL = "XAUUSD"
 
 
 class SignalService:
@@ -153,6 +153,8 @@ class SignalService:
 
         counts = {row["status"]: int(row["count"]) for row in rows}
         by_strategy = {
+            "smc_v1": {"total": 0, "active": 0},
+            "swing_long_v9": {"total": 0, "active": 0},
             "swing_long_v1": {"total": 0, "active": 0},
             "swing_long_v2": {"total": 0, "active": 0},
             "swing_long_v3": {"total": 0, "active": 0},
@@ -160,7 +162,6 @@ class SignalService:
             "swing_long_v5": {"total": 0, "active": 0},
             "swing_long_v6": {"total": 0, "active": 0},
             "swing_long_v7": {"total": 0, "active": 0},
-            "swing_long_v9": {"total": 0, "active": 0},
             "scalping_long_v1": {"total": 0, "active": 0},
             "luis_breakout_v1": {"total": 0, "active": 0},
             "crt_breakout_v1": {"total": 0, "active": 0},
@@ -197,6 +198,8 @@ class SignalService:
     def format_telegram_message(signal: dict) -> str:
         strategy = signal.get("strategy", ACTIVE_STRATEGY)
         reasons = signal.get("reasons", [])
+        if strategy == "smc_v1":
+            return _format_smc_v1_telegram_message(signal, reasons)
         if strategy == "swing_long_v9":
             return _format_swing_v9_telegram_message(signal, reasons)
         if strategy == "smc_orderblock_v1":
@@ -250,8 +253,24 @@ def _format_strategy_name(strategy: str) -> str:
         "luis_breakout_v1": "Luis Breakout V1",
         "crt_breakout_v1": "CRT Breakout V1",
         "smc_orderblock_v1": "SMC Order Block V1",
+        "smc_v1": "SMC V1 · XAUUSD",
     }
     return names.get(strategy, strategy)
+
+
+def _format_smc_v1_telegram_message(signal: dict, reasons: list[str]) -> str:
+    direction = signal.get("direction", "long").upper()
+    emoji = "🚀" if direction == "LONG" else "🔻"
+    confirmations = "\n".join(f"✅ {r}" for r in reasons[2:8])
+    return (
+        f"{emoji} SMC V1 · XAUUSD · {direction}\n\n"
+        f"Entrada: {signal['entry_price']:.5f}\n"
+        f"Stop Loss: {signal['stop_loss']:.5f}\n"
+        f"TP1: {signal['take_profit_1']:.5f}\n"
+        f"TP2: {signal['take_profit_2']:.5f}\n"
+        f"Risk/Reward: {signal['risk_reward']}\n\n"
+        f"Confirmaciones:\n{confirmations}"
+    )
 
 
 def _format_swing_v9_telegram_message(signal: dict, reasons: list[str]) -> str:
