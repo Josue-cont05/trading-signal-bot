@@ -30,8 +30,9 @@
         min-height: 100vh;
         margin: 0;
         background:
-          radial-gradient(circle at 12% 0%, rgba(59, 130, 246, 0.18), transparent 26rem),
-          radial-gradient(circle at 86% 10%, rgba(34, 197, 94, 0.12), transparent 22rem),
+          radial-gradient(circle at 12% 0%, rgba(245, 158, 11, 0.12), transparent 26rem),
+          radial-gradient(circle at 86% 10%, rgba(234, 179, 8, 0.08), transparent 22rem),
+          radial-gradient(circle at 50% 100%, rgba(59, 130, 246, 0.1), transparent 30rem),
           linear-gradient(180deg, #101a31 0%, var(--bg) 42%, #08111f 100%);
         color: var(--text);
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
@@ -63,12 +64,12 @@
         place-items: center;
         width: 46px;
         height: 46px;
-        border: 1px solid rgba(34, 197, 94, 0.42);
+        border: 1px solid rgba(245, 158, 11, 0.42);
         border-radius: 14px;
-        background: linear-gradient(145deg, rgba(34, 197, 94, 0.2), rgba(59, 130, 246, 0.14));
-        color: var(--green);
+        background: linear-gradient(145deg, rgba(245, 158, 11, 0.2), rgba(59, 130, 246, 0.14));
+        color: var(--yellow);
         font-weight: 900;
-        box-shadow: 0 0 24px rgba(34, 197, 94, 0.18);
+        box-shadow: 0 0 24px rgba(245, 158, 11, 0.18);
       }
 
       .eyebrow {
@@ -179,7 +180,7 @@
         width: 110px;
         height: 110px;
         border-radius: 50%;
-        background: rgba(59, 130, 246, 0.08);
+        background: rgba(245, 158, 11, 0.06);
         content: "";
       }
 
@@ -223,6 +224,7 @@
 
       .panel {
         overflow: hidden;
+        border-top: 2px solid rgba(245, 158, 11, 0.3);
       }
 
       .panel-heading {
@@ -317,7 +319,7 @@
         height: 8px;
         border-radius: 50%;
         background: var(--yellow);
-        box-shadow: 0 0 14px rgba(245, 158, 11, 0.7);
+        box-shadow: 0 0 18px rgba(245, 158, 11, 0.9);
         content: "";
       }
 
@@ -426,7 +428,10 @@
       }
 
       .market-price {
-        color: #f8fafc;
+        background: linear-gradient(135deg, #fbbf24, #f59e0b);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
         font-size: 1.65rem;
         font-weight: 850;
         font-variant-numeric: tabular-nums;
@@ -595,7 +600,7 @@
           <div class="d-flex align-items-center gap-3">
             <div class="brand-mark">TS</div>
             <div>
-              <p class="eyebrow">Algorithmic crypto signals</p>
+              <p class="eyebrow">Algorithmic Forex & Commodities Signals</p>
               <h1>Trading Signal Bot</h1>
             </div>
           </div>
@@ -617,7 +622,7 @@
             </div>
             <div class="header-stat">
               <span>Estrategia activa</span>
-              <strong id="active-strategy">Swing LONG V3</strong>
+              <strong id="active-strategy">SMC V1</strong>
             </div>
           </div>
         </div>
@@ -677,34 +682,34 @@
       <section class="row g-3 g-xl-4 mt-1 fade-in" aria-label="Estrategia activa">
         <div class="col-6 col-xl-3">
           <article class="metric-card h-100">
-            <div class="metric-icon" style="color: var(--blue); background: rgba(59, 130, 246, 0.12);">SW</div>
+            <div class="metric-icon" style="color: var(--blue); background: rgba(59, 130, 246, 0.12);">SMC</div>
             <p class="metric-label">Estrategia activa</p>
-            <p id="active-strategy-card" class="metric-value" style="font-size: 1.25rem;">Swing LONG V3</p>
-            <div class="metric-sub">Modo profesional BTC</div>
+            <p id="active-strategy-card" class="metric-value" style="font-size: 1.25rem;">SMC V1</p>
+            <div class="metric-sub">BOS + Imbalance + YFC · LONG/SHORT</div>
           </article>
         </div>
         <div class="col-6 col-xl-3">
           <article class="metric-card h-100">
-            <div class="metric-icon" style="color: var(--yellow); background: rgba(245, 158, 11, 0.12);">BTC</div>
+            <div class="metric-icon" style="color: var(--yellow); background: rgba(245, 158, 11, 0.12);">XAU</div>
             <p class="metric-label">Símbolo activo</p>
-            <p class="metric-value" style="font-size: 1.35rem;">BTCUSDT</p>
-            <div class="metric-sub">ETH/SOL desactivados</div>
+            <p class="metric-value" style="font-size: 1.35rem;">XAUUSD</p>
+            <div class="metric-sub">Oro · TwelveData</div>
           </article>
         </div>
         <div class="col-6 col-xl-3">
           <article class="metric-card h-100">
             <div class="metric-icon" style="color: var(--blue); background: rgba(59, 130, 246, 0.12);">4H</div>
             <p class="metric-label">Total swing</p>
-            <p id="stat-swing-total" class="metric-value">{{ stats.by_strategy.swing_long_v3.total }}</p>
-            <div class="metric-sub">Entradas 4H</div>
+            <p id="stat-swing-total" class="metric-value">{{ stats.by_strategy.smc_v1.total }}</p>
+            <div class="metric-sub">Entradas 4H · Forex</div>
           </article>
         </div>
         <div class="col-6 col-xl-3">
           <article class="metric-card h-100">
             <div class="metric-icon" style="color: var(--green); background: rgba(34, 197, 94, 0.12);">48</div>
             <p class="metric-label">Activas swing</p>
-            <p id="stat-swing-active" class="metric-value">{{ stats.by_strategy.swing_long_v3.active }}</p>
-            <div class="metric-sub">Antispam 48h</div>
+            <p id="stat-swing-active" class="metric-value">{{ stats.by_strategy.smc_v1.active }}</p>
+            <div class="metric-sub">Máx 4 señales/mes</div>
           </article>
         </div>
       </section>
@@ -713,7 +718,7 @@
         <div class="panel-heading px-0 border-0">
           <div>
             <h2 class="panel-title">Mercado Spot Monitoreado</h2>
-            <p class="panel-subtitle">Precios reales desde Binance API con fallback automatico.</p>
+            <p class="panel-subtitle">Precios reales desde TwelveData API · Forex & Commodities</p>
           </div>
         </div>
         <div id="market-grid" class="market-grid">
@@ -746,6 +751,7 @@
                 <th>Par</th>
                 <th>Estrategia</th>
                 <th>Timeframe</th>
+                <th>Dirección</th>
                 <th>Score</th>
                 <th>Confianza</th>
                 <th>Entrada</th>
@@ -761,8 +767,9 @@
               {% for signal in signals %}
                 <tr>
                   <td><span class="symbol-badge">{{ signal.symbol }}</span></td>
-                  <td><span class="strategy-chip {% if signal.strategy == 'scalping_long_v1' %}scalping{% endif %}">{% if signal.strategy == 'scalping_long_v1' %}Scalping LONG V1{% elif signal.strategy == 'swing_long_v3' %}Swing LONG V3{% elif signal.strategy == 'swing_long_v2' %}Swing LONG V2{% else %}Swing LONG V1{% endif %}</span></td>
+                  <td><span class="strategy-chip {% if signal.strategy in ['scalping_long_v1', 'luis_breakout_v1', 'crt_breakout_v1'] %}scalping{% endif %}">{% if signal.strategy == 'smc_v1' %}SMC V1 · XAUUSD{% elif signal.strategy == 'swing_long_v9' %}Swing LONG V9{% elif signal.strategy == 'smc_orderblock_v1' %}SMC Order Block V1{% elif signal.strategy == 'crt_breakout_v1' %}CRT Breakout V1{% elif signal.strategy == 'luis_breakout_v1' %}Luis Breakout V1{% elif signal.strategy == 'scalping_long_v1' %}Scalping LONG V1{% elif signal.strategy == 'swing_long_v7' %}Swing LONG V7{% elif signal.strategy == 'swing_long_v6' %}Swing LONG V6{% elif signal.strategy == 'swing_long_v5' %}Swing LONG V5{% elif signal.strategy == 'swing_long_v4' %}Swing LONG V4{% elif signal.strategy == 'swing_long_v3' %}Swing LONG V3{% elif signal.strategy == 'swing_long_v2' %}Swing LONG V2{% else %}Swing LONG V1{% endif %}</span></td>
                   <td><span class="timeframe-chip">{{ signal.timeframe|upper }}</span></td>
+                  <td><span class="state-badge {% if signal.direction == 'long' %}won{% elif signal.direction == 'short' %}lost{% else %}cancelled{% endif %}">{% if signal.direction %}{{ signal.direction|upper }}{% else %}--{% endif %}</span></td>
                   <td><span class="rr-chip">--</span></td>
                   <td><span class="rr-chip">--</span></td>
                   <td class="price">{{ "%.4f"|format(signal.entry_price) }}</td>
@@ -795,7 +802,7 @@
       </section>
 
       <footer class="footer">
-        Trading Signal Bot V1 · Flask + Binance + Telegram + Render
+        <span style="color: #f59e0b; font-weight: 700;">⬡ SMC V1</span> · Trading Signal Bot · Flask + TwelveData + Telegram + Render
       </footer>
     </main>
 
@@ -838,13 +845,22 @@
           swing_long_v1: "Swing LONG V1",
           swing_long_v2: "Swing LONG V2",
           swing_long_v3: "Swing LONG V3",
+          swing_long_v4: "Swing LONG V4",
+          swing_long_v5: "Swing LONG V5",
+          swing_long_v6: "Swing LONG V6",
+          swing_long_v7: "Swing LONG V7",
+          swing_long_v9: "Swing LONG V9",
+          smc_v1: "SMC V1 · XAUUSD",
+          luis_breakout_v1: "Luis Breakout V1",
+          crt_breakout_v1: "CRT Breakout V1",
+          smc_orderblock_v1: "SMC Order Block V1",
           scalping_long_v1: "Scalping LONG V1"
         };
-        return labels[strategy] || strategy || "Swing LONG V3";
+        return labels[strategy] || strategy || "Swing LONG V9";
       }
 
       function strategyClass(strategy) {
-        return strategy === "scalping_long_v1" ? "scalping" : "";
+        return ["scalping_long_v1", "luis_breakout_v1", "crt_breakout_v1"].includes(strategy) ? "scalping" : "";
       }
 
       function reasonValue(signal, prefix) {
@@ -885,11 +901,11 @@
         document.getElementById("stat-lost").textContent = stats.lost ?? 0;
         document.getElementById("stat-win-rate").textContent = `${Math.round(stats.win_rate || 0)}%`;
         const byStrategy = stats.by_strategy || {};
-        const swing = byStrategy.swing_long_v3 || { total: 0, active: 0 };
-        document.getElementById("stat-swing-total").textContent = swing.total ?? 0;
-        document.getElementById("stat-swing-active").textContent = swing.active ?? 0;
-        document.getElementById("active-strategy").textContent = strategyLabel(stats.active_strategy || "swing_long_v3");
-        document.getElementById("active-strategy-card").textContent = strategyLabel(stats.active_strategy || "swing_long_v3");
+        const smc = byStrategy.smc_v1 || { total: 0, active: 0 };
+        document.getElementById("stat-swing-total").textContent = smc.total ?? 0;
+        document.getElementById("stat-swing-active").textContent = smc.active ?? 0;
+        document.getElementById("active-strategy").textContent = strategyLabel(stats.active_strategy || "smc_v1");
+        document.getElementById("active-strategy-card").textContent = strategyLabel(stats.active_strategy || "smc_v1");
 
         const latest = stats.latest_signal;
         document.getElementById("stat-latest-symbol").textContent = latest ? latest.symbol : "--";
@@ -907,6 +923,7 @@
             <td><span class="symbol-badge">${signal.symbol}</span></td>
             <td><span class="strategy-chip ${strategyClass(signal.strategy)}">${strategyLabel(signal.strategy)}</span></td>
             <td><span class="timeframe-chip">${String(signal.timeframe).toUpperCase()}</span></td>
+            <td><span class="state-badge ${signal.direction === 'long' ? 'won' : 'lost'}">${signal.direction ? signal.direction.toUpperCase() : '--'}</span></td>
             <td><span class="rr-chip">${reasonValue(signal, ["Score técnico", "Score tecnico", "Score"])}</span></td>
             <td><span class="rr-chip">${reasonValue(signal, "Nivel de confianza")}</span></td>
             <td class="price">${formatNumber(signal.entry_price)}</td>
