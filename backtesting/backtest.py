@@ -139,7 +139,7 @@ def _run_lcc_v1_backtest(
     logger.info("Downloading LCC V1 data for %s", symbol)
     daily_df = service.get_historical_klines(symbol, LCC_DAILY_INTERVAL, total_limit=DAILY_HISTORY_LIMIT)
     time.sleep(15)
-    entry_df = service.get_historical_klines(symbol, LCC_ENTRY_INTERVAL, total_limit=ENTRY_HISTORY_LIMIT)
+    entry_df = service.get_historical_klines(symbol, LCC_ENTRY_INTERVAL, total_limit=5000)
     daily_prepared = lcc_add_daily(daily_df).dropna().reset_index(drop=True)
     entry_prepared = lcc_add_entry(entry_df).dropna().reset_index(drop=True)
  
