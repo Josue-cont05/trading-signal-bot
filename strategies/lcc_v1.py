@@ -132,7 +132,40 @@ def evaluate_lcc_v1_prepared(
         h4_context=h4_context,
         h4_reasons=h4_reasons,
     )
+def _analyze_h4_context(
+    h4: pd.DataFrame,
+) -> tuple[str, list[str]]:
+    """
+    Determina si el precio actual está en zona de prima o descuento
+    basándose en el rango de las últimas H4_LOOKBACK velas.
+    Prima  → precio > 60% del rango → candidato SHORT
+    Descuento → precio < 40% del rango → candidato LONG
+    Neutral → zona media, no operar
+    """
+    reasons: list[str] = []
+    if len(h4) < H4_LOOKBACK:
+        return "neutral", ["H4: datos insuficientes para análisis de rango"]
 
+    window = h4.tail(H4_LOOKBACK)
+    high = float(window["high"].max())
+    low = float(window["low"].min())
+    rng = high - low
+
+    if rng == 0:
+        return "neutral", ["H4: rango cero, no operar"]
+
+    current_price = float(h4.iloc[-1]["close"])
+    position = (current_price - low) / rng
+
+    if position >= H4_PREMIUM_PCT:
+        reasons.append(f"H4: zona prima ({position:.1%} del rango) → SHORT candidato")
+        return "premium", reasons
+    elif position <= H4_DISCOUNT_PCT:
+        reasons.append(f"H4: zona descuento ({position:.1%} del rango) → LONG candidato")
+        return "discount", reasons
+    else:
+        reasons.append(f"H4: zona neutral ({position:.1%} del rango) → no operar")
+        return "neutral", reasons
 
 # ---------------------------------------------------------------------------
 # Constructor de señal
