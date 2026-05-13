@@ -1,9 +1,9 @@
 import argparse
 import logging
 import time
-
+ 
 import pandas as pd
-
+ 
 from backtesting.report import build_report, calculate_metrics, print_summary, save_report
 from config.settings import DAILY_INTERVAL
 from services.twelvedata_service import TwelveDataService
@@ -11,15 +11,24 @@ from strategies.smc_v1 import MAX_SIGNALS_PER_MONTH
 from strategies.smc_v1 import STRATEGY_ID as ACTIVE_STRATEGY_ID
 from strategies.smc_v1 import TIMEFRAME
 from strategies.smc_v1 import add_daily_indicators, add_entry_indicators, evaluate_smc_v1_prepared
-
-
+from strategies.lcc_v1 import (
+    MAX_SIGNALS_PER_MONTH as LCC_MAX_SIGNALS,
+    STRATEGY_ID as LCC_STRATEGY_ID,
+    TIMEFRAME as LCC_TIMEFRAME,
+    add_daily_indicators as lcc_add_daily,
+    add_entry_indicators as lcc_add_entry,
+    evaluate_lcc_v1_prepared,
+)
+ 
+ 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
 logging.getLogger("strategies.smc_v1").setLevel(logging.WARNING)
-
+logging.getLogger("strategies.lcc_v1").setLevel(logging.WARNING)
+ 
 INITIAL_CAPITAL = 1000.0
 RISK_PER_TRADE = 0.01
 DEFAULT_COMMISSION_PERCENT = 0.002
@@ -27,37 +36,39 @@ DEFAULT_SLIPPAGE_PERCENT = 0.001
 SYMBOLS_TO_TEST = ["XAUUSD"]
 DAILY_HISTORY_LIMIT = 1500
 ENTRY_HISTORY_LIMIT = 3000
-
-
+LCC_DAILY_INTERVAL = "4h"
+LCC_ENTRY_INTERVAL = "1h"
+LCC_SYMBOLS = ["XAUUSD"]
+ 
+ 
 def main() -> None:
     args = _parse_args()
-    logger.info("Starting backtest for %s", ", ".join(SYMBOLS_TO_TEST))
-    logger.info(
-        "Costs configured. commission=%s%% slippage=%s%%",
-        args.commission_percent,
-        args.slippage_percent,
-    )
     service = TwelveDataService()
     results = []
-
+ 
+    logger.info("=== SMC V1 BACKTEST ===")
     for symbol in SYMBOLS_TO_TEST:
         results.append(_run_smc_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
-        if symbol != SYMBOLS_TO_TEST[-1]:
-            time.sleep(15)
-
+        time.sleep(15)
+ 
+    logger.info("=== LCC V1 BACKTEST ===")
+    for symbol in LCC_SYMBOLS:
+        results.append(_run_lcc_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
+        time.sleep(15)
+ 
     report = build_report(results, INITIAL_CAPITAL, args.commission_percent, args.slippage_percent)
     save_report(report)
     print_summary(report)
     logger.info("Backtest finished.")
-
-
+ 
+ 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Backtest trading-signal-bot strategies.")
     parser.add_argument("--commission-percent", type=float, default=DEFAULT_COMMISSION_PERCENT)
     parser.add_argument("--slippage-percent", type=float, default=DEFAULT_SLIPPAGE_PERCENT)
     return parser.parse_args()
-
-
+ 
+ 
 def _run_smc_v1_backtest(
     service: TwelveDataService,
     symbol: str,
@@ -69,7 +80,7 @@ def _run_smc_v1_backtest(
     entry_df = service.get_historical_klines(symbol, TIMEFRAME, total_limit=ENTRY_HISTORY_LIMIT)
     daily_prepared = add_daily_indicators(daily_df).dropna().reset_index(drop=True)
     entry_prepared = add_entry_indicators(entry_df).dropna().reset_index(drop=True)
-
+ 
     trades = []
     warmup = 30
     index = warmup
@@ -81,23 +92,23 @@ def _run_smc_v1_backtest(
         if daily_slice.empty:
             index += 1
             continue
-
+ 
         signal_month = entry_slice.iloc[-1]["close_time"].strftime("%Y-%m")
         if signals_by_month.get(signal_month, 0) >= MAX_SIGNALS_PER_MONTH:
             index += 1
             continue
-
+ 
         signal = evaluate_smc_v1_prepared(symbol, daily_slice, entry_slice, ignore_session=True)
         if not signal:
             index += 1
             continue
-
+ 
         future_df = entry_prepared.iloc[index + 1 :].copy()
         trade = _simulate_partial_exit_trade(signal, future_df, commission_percent, slippage_percent)
         trades.append(trade)
         signals_by_month[signal_month] = signals_by_month.get(signal_month, 0) + 1
         index = trade["exit_index"] + 1 if trade["exit_index"] is not None else len(entry_df)
-
+ 
     metrics = calculate_metrics(trades, INITIAL_CAPITAL)
     if trades:
         first_trade = trades[0].get("entry_time", "N/A")
@@ -117,8 +128,68 @@ def _run_smc_v1_backtest(
         "metrics": metrics,
         "trades": trades,
     }
-
-
+ 
+ 
+def _run_lcc_v1_backtest(
+    service: TwelveDataService,
+    symbol: str,
+    commission_percent: float,
+    slippage_percent: float,
+) -> dict:
+    logger.info("Downloading LCC V1 data for %s", symbol)
+    daily_df = service.get_historical_klines(symbol, LCC_DAILY_INTERVAL, total_limit=DAILY_HISTORY_LIMIT)
+    time.sleep(15)
+    entry_df = service.get_historical_klines(symbol, LCC_ENTRY_INTERVAL, total_limit=ENTRY_HISTORY_LIMIT)
+    daily_prepared = lcc_add_daily(daily_df).dropna().reset_index(drop=True)
+    entry_prepared = lcc_add_entry(entry_df).dropna().reset_index(drop=True)
+ 
+    trades = []
+    index = 30
+    signals_by_month: dict[str, int] = {}
+    while index < len(entry_prepared) - 2:
+        entry_slice = entry_prepared.iloc[: index + 1].copy()
+        current_close_time = entry_slice.iloc[-1]["close_time"]
+        daily_slice = daily_prepared[daily_prepared["close_time"] <= current_close_time].copy()
+        if daily_slice.empty:
+            index += 1
+            continue
+ 
+        signal_month = entry_slice.iloc[-1]["close_time"].strftime("%Y-%m")
+        if signals_by_month.get(signal_month, 0) >= LCC_MAX_SIGNALS:
+            index += 1
+            continue
+ 
+        signal = evaluate_lcc_v1_prepared(symbol, daily_slice, entry_slice, ignore_session=True)
+        if not signal:
+            index += 1
+            continue
+ 
+        future_df = entry_prepared.iloc[index + 1 :].copy()
+        trade = _simulate_partial_exit_trade(signal, future_df, commission_percent, slippage_percent)
+        trades.append(trade)
+        signals_by_month[signal_month] = signals_by_month.get(signal_month, 0) + 1
+        index = trade["exit_index"] + 1 if trade["exit_index"] is not None else len(entry_prepared)
+ 
+    if trades:
+        logger.info(
+            "%s LCC V1 backtest period: %s → %s (%s trades)",
+            symbol,
+            trades[0].get("entry_time", "N/A"),
+            trades[-1].get("entry_time", "N/A"),
+            len(trades),
+        )
+ 
+    metrics = calculate_metrics(trades, INITIAL_CAPITAL)
+    logger.info("%s LCC V1 trades=%s win_rate=%s%%", symbol, metrics["total_trades"], metrics["win_rate"])
+    return {
+        "symbol": symbol,
+        "strategy": LCC_STRATEGY_ID,
+        "timeframe": LCC_TIMEFRAME,
+        "metrics": metrics,
+        "trades": trades,
+    }
+ 
+ 
 def _simulate_trade(
     signal: dict,
     future_df: pd.DataFrame,
@@ -131,17 +202,17 @@ def _simulate_trade(
     risk_distance = entry - stop
     risk_amount = INITIAL_CAPITAL * RISK_PER_TRADE
     position_size = risk_amount / risk_distance if risk_distance > 0 else 0
-
+ 
     result = "open"
     exit_price = None
     exit_time = None
-
+ 
     exit_index = None
     for candle_index, candle in future_df.iterrows():
         low = float(candle["low"])
         high = float(candle["high"])
         exit_time = candle["close_time"].isoformat()
-
+ 
         if low <= stop:
             result = "loss"
             exit_price = stop
@@ -152,18 +223,18 @@ def _simulate_trade(
             exit_price = tp1
             exit_index = int(candle_index)
             break
-
+ 
     if result == "open":
         exit_price = float(future_df.iloc[-1]["close"]) if not future_df.empty else entry
         exit_time = future_df.iloc[-1]["close_time"].isoformat() if not future_df.empty else None
-
+ 
     gross_pnl = (exit_price - entry) * position_size if position_size else 0.0
     entry_notional = entry * position_size
     exit_notional = exit_price * position_size if exit_price is not None else 0.0
     commission_cost = (entry_notional + exit_notional) * (commission_percent / 100)
     slippage_cost = (entry_notional + exit_notional) * (slippage_percent / 100)
     net_pnl = gross_pnl - commission_cost - slippage_cost
-
+ 
     return {
         "symbol": signal["symbol"],
         "strategy": signal["strategy"],
@@ -187,8 +258,8 @@ def _simulate_trade(
         "net_pnl": round(net_pnl, 2),
         "pnl": round(net_pnl, 2),
     }
-
-
+ 
+ 
 def _simulate_partial_exit_trade(
     signal: dict,
     future_df: pd.DataFrame,
@@ -205,28 +276,28 @@ def _simulate_partial_exit_trade(
     risk_amount = INITIAL_CAPITAL * RISK_PER_TRADE
     position_size = risk_amount / risk_distance if risk_distance > 0 else 0
     half_position = position_size * 0.5
-
+ 
     result = "open"
     exit_price = None
     exit_time = None
     exit_index = None
     tp1_hit = False
     tp1_time = None
-
+ 
     gross_pnl = 0.0
     exit_notional = 0.0
-
+ 
     for candle_index, candle in future_df.iterrows():
         low = float(candle["low"])
         high = float(candle["high"])
         candle_close_time = candle["close_time"].isoformat()
         exit_time = candle_close_time
-
+ 
         if not tp1_hit:
             stop_hit = low <= stop if is_long else high >= stop
             tp1_reached = high >= tp1 if is_long else low <= tp1
             tp2_reached = high >= tp2 if is_long else low <= tp2
-
+ 
             if stop_hit:
                 result = "loss"
                 exit_price = stop
@@ -239,7 +310,7 @@ def _simulate_partial_exit_trade(
                 tp1_time = candle_close_time
                 gross_pnl += ((tp1 - entry) if is_long else (entry - tp1)) * half_position
                 exit_notional += tp1 * half_position
-
+ 
                 if tp2_reached:
                     result = "win_full"
                     exit_price = tp2
@@ -248,11 +319,11 @@ def _simulate_partial_exit_trade(
                     exit_notional += tp2 * half_position
                     break
                 continue
-
+ 
         if tp1_hit:
             break_even_hit = low <= entry if is_long else high >= entry
             tp2_reached = high >= tp2 if is_long else low <= tp2
-
+ 
             if break_even_hit:
                 result = "partial_win"
                 exit_price = entry
@@ -266,7 +337,7 @@ def _simulate_partial_exit_trade(
                 gross_pnl += ((tp2 - entry) if is_long else (entry - tp2)) * half_position
                 exit_notional += tp2 * half_position
                 break
-
+ 
     if result == "open":
         exit_price = float(future_df.iloc[-1]["close"]) if not future_df.empty else entry
         exit_time = future_df.iloc[-1]["close_time"].isoformat() if not future_df.empty else None
@@ -276,12 +347,12 @@ def _simulate_partial_exit_trade(
         else:
             gross_pnl = ((exit_price - entry) if is_long else (entry - exit_price)) * position_size if position_size else 0.0
             exit_notional = exit_price * position_size if exit_price is not None else 0.0
-
+ 
     entry_notional = entry * position_size
     commission_cost = (entry_notional + exit_notional) * (commission_percent / 100)
     slippage_cost = (entry_notional + exit_notional) * (slippage_percent / 100)
     net_pnl = gross_pnl - commission_cost - slippage_cost
-
+ 
     return {
         "symbol": signal["symbol"],
         "strategy": signal["strategy"],
@@ -311,7 +382,8 @@ def _simulate_partial_exit_trade(
         "net_pnl": round(net_pnl, 2),
         "pnl": round(net_pnl, 2),
     }
-
-
+ 
+ 
 if __name__ == "__main__":
     main()
+ 
