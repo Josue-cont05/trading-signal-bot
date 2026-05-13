@@ -10,9 +10,9 @@ STRATEGY_ID = "lcc_v1"
 STRATEGY_NAME = "LCC V1 - Liquidez, Cobertura y Confirmación"
 TIMEFRAME = "1h"
 DAILY_TIMEFRAME = "4h"
-MAX_STOP_DISTANCE_PERCENT = 4.0
+MAX_STOP_DISTANCE_PERCENT = 2.0
 MIN_RR = 3.0
-VALID_SYMBOLS = ["XAUUSD"]
+VALID_SYMBOLS = ["EURUSD"]
 VALID_DIRECTIONS = ["long", "short"]
 
 # Parámetros de la lógica LCC
@@ -20,10 +20,10 @@ H4_LOOKBACK = 20          # velas H4 para calcular rango macro prima/descuento
 H4_PREMIUM_PCT = 0.60     # por encima del 60 % del rango → zona prima
 H4_DISCOUNT_PCT = 0.40    # por debajo del 40 % del rango → zona descuento
 H1_SWING_LOOKBACK = 10    # velas H1 para identificar swing relevante
-H1_COVER_BODY_PCT = 0.30  # la vela de cobertura debe cubrir ≥ 30 % del cuerpo del sweep
+H1_COVER_BODY_PCT = 0.15  # la vela de cobertura debe cubrir ≥ 15 % del cuerpo del sweep
 M15_DISP_LOOKBACK = 6     # velas M15 para detectar desplazamiento / CHoCH
-M15_MIN_DISP_FACTOR = 0.15  # desplazamiento mínimo como factor del ATR M15
-MIN_SCORE = 8             # score mínimo sobre 10 para emitir señal
+M15_MIN_DISP_FACTOR = 0.10  # desplazamiento mínimo como factor del ATR M15
+MIN_SCORE = 6             # score mínimo sobre 10 para emitir señal
 MAX_SIGNALS_PER_MONTH = 4
 
 
