@@ -25,6 +25,7 @@ SYMBOL_MAP = {
     "BTCUSDT": "BTC/USD",
     "ETHUSDT": "ETH/USD",
     "SOLUSDT": "SOL/USD",
+    "USDCAD": "USD/CAD",
 }
 
 
