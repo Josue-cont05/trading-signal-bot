@@ -24,6 +24,7 @@ H1_COVER_BODY_PCT = 0.30  # la vela de cobertura debe cubrir ≥ 30 % del cuerpo
 M15_DISP_LOOKBACK = 6     # velas M15 para detectar desplazamiento / CHoCH
 M15_MIN_DISP_FACTOR = 0.15  # desplazamiento mínimo como factor del ATR M15
 MIN_SCORE = 8             # score mínimo sobre 10 para emitir señal
+MAX_SIGNALS_PER_MONTH = 4
 
 
 # ---------------------------------------------------------------------------
