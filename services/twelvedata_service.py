@@ -22,6 +22,8 @@ SYMBOL_MAP = {
     "GBPUSD": "GBP/USD",
     "XAUUSD": "XAU/USD",
     "SPX500": "SPX",
+    "NAS100": "NDX",
+    "US30": "DJI",
     "BTCUSDT": "BTC/USD",
     "ETHUSDT": "ETH/USD",
     "SOLUSDT": "SOL/USD",
