@@ -69,28 +69,28 @@ def main() -> None:
     logger.info("=== SMC V1 BACKTEST ===")
     for symbol in SYMBOLS_TO_TEST:
         results.append(_run_smc_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
-        time.sleep(15)
+        time.sleep(65)
 
     time.sleep(90)
 
     logger.info("=== LCC V1 BACKTEST ===")
     for symbol in LCC_SYMBOLS:
         results.append(_run_lcc_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
-        time.sleep(15)
+        time.sleep(65)
 
     time.sleep(90)
 
     logger.info("=== MIY V1 BACKTEST ===")
     for symbol in MIY_SYMBOLS:
         results.append(_run_miy_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
-        time.sleep(15)
+        time.sleep(65)
 
     time.sleep(90)
 
     logger.info("=== BI V1 BACKTEST ===")
     for symbol in BI_SYMBOLS:
         results.append(_run_bi_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
-        time.sleep(15)
+        time.sleep(65)
 
     report = build_report(results, INITIAL_CAPITAL, args.commission_percent, args.slippage_percent)
     save_report(report)
@@ -113,7 +113,7 @@ def _run_smc_v1_backtest(
 ) -> dict:
     logger.info("Downloading SMC V1 data for %s", symbol)
     daily_df = service.get_historical_klines(symbol, DAILY_INTERVAL, total_limit=DAILY_HISTORY_LIMIT)
-    time.sleep(15)
+    time.sleep(65)
     entry_df = service.get_historical_klines(symbol, TIMEFRAME, total_limit=ENTRY_HISTORY_LIMIT)
     daily_prepared = add_daily_indicators(daily_df).dropna().reset_index(drop=True)
     entry_prepared = add_entry_indicators(entry_df).dropna().reset_index(drop=True)
@@ -235,7 +235,7 @@ def _run_miy_v1_backtest(
 ) -> dict:
     logger.info("Downloading MIY V1 data for %s", symbol)
     daily_df = service.get_historical_klines(symbol, DAILY_INTERVAL, total_limit=DAILY_HISTORY_LIMIT)
-    time.sleep(15)
+    time.sleep(65)
     entry_df = service.get_historical_klines(symbol, MIY_TIMEFRAME, total_limit=ENTRY_HISTORY_LIMIT)
     daily_prepared = miy_add_daily(daily_df).dropna().reset_index(drop=True)
     entry_prepared = miy_add_entry(entry_df).dropna().reset_index(drop=True)
@@ -295,7 +295,7 @@ def _run_bi_v1_backtest(
 ) -> dict:
     logger.info("Downloading BI V1 data for %s", symbol)
     daily_df = service.get_historical_klines(symbol, DAILY_INTERVAL, total_limit=DAILY_HISTORY_LIMIT)
-    time.sleep(15)
+    time.sleep(65)
     entry_df = service.get_historical_klines(symbol, BI_TIMEFRAME, total_limit=ENTRY_HISTORY_LIMIT)
     daily_prepared = bi_add_daily(daily_df).dropna().reset_index(drop=True)
     entry_prepared = bi_add_entry(entry_df).dropna().reset_index(drop=True)
