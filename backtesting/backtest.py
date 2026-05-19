@@ -19,8 +19,24 @@ from strategies.lcc_v1 import (
     add_entry_indicators as lcc_add_entry,
     evaluate_lcc_v1_prepared,
 )
- 
- 
+from strategies.miy_v1 import (
+    MAX_SIGNALS_PER_MONTH as MIY_MAX_SIGNALS,
+    STRATEGY_ID as MIY_STRATEGY_ID,
+    TIMEFRAME as MIY_TIMEFRAME,
+    add_daily_indicators as miy_add_daily,
+    add_entry_indicators as miy_add_entry,
+    evaluate_miy_v1_prepared,
+)
+from strategies.bi_v1 import (
+    MAX_SIGNALS_PER_MONTH as BI_MAX_SIGNALS,
+    STRATEGY_ID as BI_STRATEGY_ID,
+    TIMEFRAME as BI_TIMEFRAME,
+    add_daily_indicators as bi_add_daily,
+    add_entry_indicators as bi_add_entry,
+    evaluate_bi_v1_prepared,
+)
+
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s - %(message)s",
@@ -28,6 +44,8 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logging.getLogger("strategies.smc_v1").setLevel(logging.WARNING)
 logging.getLogger("strategies.lcc_v1").setLevel(logging.WARNING)
+logging.getLogger("strategies.miy_v1").setLevel(logging.WARNING)
+logging.getLogger("strategies.bi_v1").setLevel(logging.WARNING)
  
 INITIAL_CAPITAL = 1000.0
 RISK_PER_TRADE = 0.01
@@ -39,6 +57,8 @@ ENTRY_HISTORY_LIMIT = 2200
 LCC_DAILY_INTERVAL = "4h"
 LCC_ENTRY_INTERVAL = "1h"
 LCC_SYMBOLS = ["EURUSD"]
+MIY_SYMBOLS = ["NAS100"]
+BI_SYMBOLS = ["US30"]
  
  
 def main() -> None:
@@ -55,7 +75,17 @@ def main() -> None:
     for symbol in LCC_SYMBOLS:
         results.append(_run_lcc_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
         time.sleep(15)
- 
+
+    logger.info("=== MIY V1 BACKTEST ===")
+    for symbol in MIY_SYMBOLS:
+        results.append(_run_miy_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
+        time.sleep(15)
+
+    logger.info("=== BI V1 BACKTEST ===")
+    for symbol in BI_SYMBOLS:
+        results.append(_run_bi_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
+        time.sleep(15)
+
     report = build_report(results, INITIAL_CAPITAL, args.commission_percent, args.slippage_percent)
     save_report(report)
     print_summary(report)
@@ -190,6 +220,124 @@ def _run_lcc_v1_backtest(
     }
  
  
+def _run_miy_v1_backtest(
+    service: TwelveDataService,
+    symbol: str,
+    commission_percent: float,
+    slippage_percent: float,
+) -> dict:
+    logger.info("Downloading MIY V1 data for %s", symbol)
+    daily_df = service.get_historical_klines(symbol, DAILY_INTERVAL, total_limit=DAILY_HISTORY_LIMIT)
+    entry_df = service.get_historical_klines(symbol, MIY_TIMEFRAME, total_limit=ENTRY_HISTORY_LIMIT)
+    daily_prepared = miy_add_daily(daily_df).dropna().reset_index(drop=True)
+    entry_prepared = miy_add_entry(entry_df).dropna().reset_index(drop=True)
+
+    trades = []
+    warmup = 30
+    index = warmup
+    signals_by_month: dict[str, int] = {}
+    while index < len(entry_prepared) - 2:
+        entry_slice = entry_prepared.iloc[: index + 1].copy()
+        current_close_time = entry_slice.iloc[-1]["close_time"]
+        daily_slice = daily_prepared[daily_prepared["close_time"] <= current_close_time].copy()
+        if daily_slice.empty:
+            index += 1
+            continue
+
+        signal_month = entry_slice.iloc[-1]["close_time"].strftime("%Y-%m")
+        if signals_by_month.get(signal_month, 0) >= MIY_MAX_SIGNALS:
+            index += 1
+            continue
+
+        signal = evaluate_miy_v1_prepared(symbol, daily_slice, entry_slice, ignore_session=True)
+        if not signal:
+            index += 1
+            continue
+
+        future_df = entry_prepared.iloc[index + 1 :].copy()
+        trade = _simulate_partial_exit_trade(signal, future_df, commission_percent, slippage_percent)
+        trades.append(trade)
+        signals_by_month[signal_month] = signals_by_month.get(signal_month, 0) + 1
+        index = trade["exit_index"] + 1 if trade["exit_index"] is not None else len(entry_prepared)
+
+    metrics = calculate_metrics(trades, INITIAL_CAPITAL)
+    if trades:
+        logger.info(
+            "%s MIY V1 backtest period: %s → %s (%s trades)",
+            symbol,
+            trades[0].get("entry_time", "N/A"),
+            trades[-1].get("entry_time", "N/A"),
+            len(trades),
+        )
+    logger.info("%s MIY V1 trades=%s win_rate=%s%%", symbol, metrics["total_trades"], metrics["win_rate"])
+    return {
+        "symbol": symbol,
+        "strategy": MIY_STRATEGY_ID,
+        "timeframe": MIY_TIMEFRAME,
+        "metrics": metrics,
+        "trades": trades,
+    }
+
+
+def _run_bi_v1_backtest(
+    service: TwelveDataService,
+    symbol: str,
+    commission_percent: float,
+    slippage_percent: float,
+) -> dict:
+    logger.info("Downloading BI V1 data for %s", symbol)
+    daily_df = service.get_historical_klines(symbol, DAILY_INTERVAL, total_limit=DAILY_HISTORY_LIMIT)
+    entry_df = service.get_historical_klines(symbol, BI_TIMEFRAME, total_limit=ENTRY_HISTORY_LIMIT)
+    daily_prepared = bi_add_daily(daily_df).dropna().reset_index(drop=True)
+    entry_prepared = bi_add_entry(entry_df).dropna().reset_index(drop=True)
+
+    trades = []
+    warmup = 30
+    index = warmup
+    signals_by_month: dict[str, int] = {}
+    while index < len(entry_prepared) - 2:
+        entry_slice = entry_prepared.iloc[: index + 1].copy()
+        current_close_time = entry_slice.iloc[-1]["close_time"]
+        daily_slice = daily_prepared[daily_prepared["close_time"] <= current_close_time].copy()
+        if daily_slice.empty:
+            index += 1
+            continue
+
+        signal_month = entry_slice.iloc[-1]["close_time"].strftime("%Y-%m")
+        if signals_by_month.get(signal_month, 0) >= BI_MAX_SIGNALS:
+            index += 1
+            continue
+
+        signal = evaluate_bi_v1_prepared(symbol, daily_slice, entry_slice, ignore_session=True)
+        if not signal:
+            index += 1
+            continue
+
+        future_df = entry_prepared.iloc[index + 1 :].copy()
+        trade = _simulate_partial_exit_trade(signal, future_df, commission_percent, slippage_percent)
+        trades.append(trade)
+        signals_by_month[signal_month] = signals_by_month.get(signal_month, 0) + 1
+        index = trade["exit_index"] + 1 if trade["exit_index"] is not None else len(entry_prepared)
+
+    metrics = calculate_metrics(trades, INITIAL_CAPITAL)
+    if trades:
+        logger.info(
+            "%s BI V1 backtest period: %s → %s (%s trades)",
+            symbol,
+            trades[0].get("entry_time", "N/A"),
+            trades[-1].get("entry_time", "N/A"),
+            len(trades),
+        )
+    logger.info("%s BI V1 trades=%s win_rate=%s%%", symbol, metrics["total_trades"], metrics["win_rate"])
+    return {
+        "symbol": symbol,
+        "strategy": BI_STRATEGY_ID,
+        "timeframe": BI_TIMEFRAME,
+        "metrics": metrics,
+        "trades": trades,
+    }
+
+
 def _simulate_trade(
     signal: dict,
     future_df: pd.DataFrame,

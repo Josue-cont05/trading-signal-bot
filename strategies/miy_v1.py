@@ -6,14 +6,14 @@ import pandas as pd
 
 
 logger = logging.getLogger(__name__)
-STRATEGY_ID = "smc_v1"
-STRATEGY_NAME = "SMC V1 - BOS + Imbalance + YFC"
+STRATEGY_ID = "miy_v1"
+STRATEGY_NAME = "MIY V1 - Macro + Imbalance + YFC"
 TIMEFRAME = "4h"
 DAILY_TIMEFRAME = "1d"
 MAX_SIGNALS_PER_MONTH = 4
 MAX_STOP_DISTANCE_PERCENT = 4.0
 MIN_RR = 3.0
-VALID_SYMBOLS = ["XAUUSD", "SPX500"]
+VALID_SYMBOLS = ["NAS100"]
 VALID_DIRECTIONS = ["long", "short"]
 
 
@@ -43,24 +43,24 @@ def calculate_atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
     return true_range.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
 
 
-def evaluate_smc_v1(symbol: str, daily_df: pd.DataFrame, entry_df: pd.DataFrame) -> dict | None:
+def evaluate_miy_v1(symbol: str, daily_df: pd.DataFrame, entry_df: pd.DataFrame) -> dict | None:
     if symbol not in VALID_SYMBOLS:
-        logger.info("%s skipped because SMC V1 supports only %s.", symbol, ", ".join(VALID_SYMBOLS))
+        logger.info("%s skipped because MIY V1 supports only %s.", symbol, ", ".join(VALID_SYMBOLS))
         return None
     if len(daily_df) < 220 or len(entry_df) < 60:
-        logger.warning("Not enough candles to evaluate %s smc_v1.", symbol)
+        logger.warning("Not enough candles to evaluate %s miy_v1.", symbol)
         return None
 
     daily = add_daily_indicators(daily_df).dropna()
     entry = add_entry_indicators(entry_df).dropna()
     if len(daily) < 2 or len(entry) < 60:
-        logger.warning("Indicator calculation produced insufficient smc_v1 data for %s.", symbol)
+        logger.warning("Indicator calculation produced insufficient miy_v1 data for %s.", symbol)
         return None
 
-    return evaluate_smc_v1_prepared(symbol, daily, entry)
+    return evaluate_miy_v1_prepared(symbol, daily, entry)
 
 
-def evaluate_smc_v1_prepared(
+def evaluate_miy_v1_prepared(
     symbol: str,
     daily: pd.DataFrame,
     entry: pd.DataFrame,
@@ -121,7 +121,6 @@ def _build_signal(
         return None
 
     is_long = direction == "long"
-    bos_detected = detect_bos(entry) if is_long else detect_bos_short(entry)
     imbalance_level = (
         find_unmitigated_imbalance(entry, current_price)
         if is_long
@@ -131,11 +130,10 @@ def _build_signal(
     yfc_level = yfc_original
 
     logger.info(
-        "%s smc_v1 %s check. macro_valid=%s bos=%s imbalance=%s yfc=%s session=%s atr=%.5f",
+        "%s miy_v1 %s check. macro_valid=%s imbalance=%s yfc=%s session=%s atr=%.5f",
         symbol,
         direction,
         macro_valid,
-        bos_detected,
         imbalance_level is not None,
         yfc_original is not None,
         session_valid,
@@ -143,8 +141,6 @@ def _build_signal(
     )
 
     if not macro_valid:
-        return None
-    if not bos_detected:
         return None
     if imbalance_level is None:
         return None
@@ -205,7 +201,6 @@ def _build_signal(
             f"Dirección: {'LONG' if direction == 'long' else 'SHORT'}",
             f"Filtro macro: EMA50 {'>' if direction == 'long' else '<'} EMA200",
             f"Símbolo: {symbol}",
-            "BOS detectado en 4H",
             f"Imbalance no mitigado en: {imbalance_level:.5f}",
             f"YFC: {'confirmado' if yfc_original is not None else 'fallback'}",
             yfc_reason,
