@@ -65,32 +65,55 @@ def main() -> None:
     args = _parse_args()
     service = TwelveDataService()
     results = []
- 
+
+    logger.info("Downloading all data...")
+    symbol_data: dict[str, dict] = {}
+
+    all_downloads = [
+        ("XAUUSD", DAILY_INTERVAL, TIMEFRAME, DAILY_HISTORY_LIMIT, ENTRY_HISTORY_LIMIT, "smc_v1"),
+        ("NAS100", DAILY_INTERVAL, TIMEFRAME, DAILY_HISTORY_LIMIT, ENTRY_HISTORY_LIMIT, "smc_v1"),
+        ("SPX500", DAILY_INTERVAL, TIMEFRAME, DAILY_HISTORY_LIMIT, ENTRY_HISTORY_LIMIT, "smc_v1"),
+        ("US30", DAILY_INTERVAL, TIMEFRAME, DAILY_HISTORY_LIMIT, ENTRY_HISTORY_LIMIT, "smc_v1"),
+        ("EURUSD", LCC_DAILY_INTERVAL, LCC_ENTRY_INTERVAL, DAILY_HISTORY_LIMIT, 5000, "lcc_v1"),
+        ("NAS100", DAILY_INTERVAL, MIY_TIMEFRAME, DAILY_HISTORY_LIMIT, ENTRY_HISTORY_LIMIT, "miy_v1"),
+        ("US30", DAILY_INTERVAL, BI_TIMEFRAME, DAILY_HISTORY_LIMIT, ENTRY_HISTORY_LIMIT, "bi_v1"),
+    ]
+
+    for symbol, daily_interval, entry_interval, daily_limit, entry_limit, strategy in all_downloads:
+        key = f"{strategy}_{symbol}"
+        try:
+            daily_df = service.get_historical_klines(symbol, daily_interval, total_limit=daily_limit)
+            time.sleep(65)
+            entry_df = service.get_historical_klines(symbol, entry_interval, total_limit=entry_limit)
+            time.sleep(65)
+            symbol_data[key] = {"daily": daily_df, "entry": entry_df}
+            logger.info("Data ready for %s %s", strategy, symbol)
+        except Exception as exc:
+            logger.error("Failed to download %s %s: %s", strategy, symbol, exc)
+
     logger.info("=== SMC V1 BACKTEST ===")
     for symbol in SYMBOLS_TO_TEST:
-        results.append(_run_smc_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
-        time.sleep(65)
-
-    time.sleep(90)
+        key = f"smc_v1_{symbol}"
+        if key in symbol_data:
+            results.append(_run_smc_v1_backtest_prepared(symbol, symbol_data[key]["daily"], symbol_data[key]["entry"], args.commission_percent, args.slippage_percent))
 
     logger.info("=== LCC V1 BACKTEST ===")
     for symbol in LCC_SYMBOLS:
-        results.append(_run_lcc_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
-        time.sleep(65)
-
-    time.sleep(90)
+        key = f"lcc_v1_{symbol}"
+        if key in symbol_data:
+            results.append(_run_lcc_v1_backtest_prepared(symbol, symbol_data[key]["daily"], symbol_data[key]["entry"], args.commission_percent, args.slippage_percent))
 
     logger.info("=== MIY V1 BACKTEST ===")
     for symbol in MIY_SYMBOLS:
-        results.append(_run_miy_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
-        time.sleep(65)
-
-    time.sleep(90)
+        key = f"miy_v1_{symbol}"
+        if key in symbol_data:
+            results.append(_run_miy_v1_backtest_prepared(symbol, symbol_data[key]["daily"], symbol_data[key]["entry"], args.commission_percent, args.slippage_percent))
 
     logger.info("=== BI V1 BACKTEST ===")
     for symbol in BI_SYMBOLS:
-        results.append(_run_bi_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
-        time.sleep(65)
+        key = f"bi_v1_{symbol}"
+        if key in symbol_data:
+            results.append(_run_bi_v1_backtest_prepared(symbol, symbol_data[key]["daily"], symbol_data[key]["entry"], args.commission_percent, args.slippage_percent))
 
     report = build_report(results, INITIAL_CAPITAL, args.commission_percent, args.slippage_percent)
     save_report(report)
@@ -105,16 +128,13 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
  
  
-def _run_smc_v1_backtest(
-    service: TwelveDataService,
+def _run_smc_v1_backtest_prepared(
     symbol: str,
+    daily_df: pd.DataFrame,
+    entry_df: pd.DataFrame,
     commission_percent: float,
     slippage_percent: float,
 ) -> dict:
-    logger.info("Downloading SMC V1 data for %s", symbol)
-    daily_df = service.get_historical_klines(symbol, DAILY_INTERVAL, total_limit=DAILY_HISTORY_LIMIT)
-    time.sleep(65)
-    entry_df = service.get_historical_klines(symbol, TIMEFRAME, total_limit=ENTRY_HISTORY_LIMIT)
     daily_prepared = add_daily_indicators(daily_df).dropna().reset_index(drop=True)
     entry_prepared = add_entry_indicators(entry_df).dropna().reset_index(drop=True)
  
@@ -167,16 +187,13 @@ def _run_smc_v1_backtest(
     }
  
  
-def _run_lcc_v1_backtest(
-    service: TwelveDataService,
+def _run_lcc_v1_backtest_prepared(
     symbol: str,
+    daily_df: pd.DataFrame,
+    entry_df: pd.DataFrame,
     commission_percent: float,
     slippage_percent: float,
 ) -> dict:
-    logger.info("Downloading LCC V1 data for %s", symbol)
-    daily_df = service.get_historical_klines(symbol, LCC_DAILY_INTERVAL, total_limit=DAILY_HISTORY_LIMIT)
-    time.sleep(15)
-    entry_df = service.get_historical_klines(symbol, LCC_ENTRY_INTERVAL, total_limit=5000)
     daily_prepared = lcc_add_daily(daily_df).dropna().reset_index(drop=True)
     entry_prepared = lcc_add_entry(entry_df).dropna().reset_index(drop=True)
  
@@ -227,16 +244,13 @@ def _run_lcc_v1_backtest(
     }
  
  
-def _run_miy_v1_backtest(
-    service: TwelveDataService,
+def _run_miy_v1_backtest_prepared(
     symbol: str,
+    daily_df: pd.DataFrame,
+    entry_df: pd.DataFrame,
     commission_percent: float,
     slippage_percent: float,
 ) -> dict:
-    logger.info("Downloading MIY V1 data for %s", symbol)
-    daily_df = service.get_historical_klines(symbol, DAILY_INTERVAL, total_limit=DAILY_HISTORY_LIMIT)
-    time.sleep(65)
-    entry_df = service.get_historical_klines(symbol, MIY_TIMEFRAME, total_limit=ENTRY_HISTORY_LIMIT)
     daily_prepared = miy_add_daily(daily_df).dropna().reset_index(drop=True)
     entry_prepared = miy_add_entry(entry_df).dropna().reset_index(drop=True)
 
@@ -287,16 +301,13 @@ def _run_miy_v1_backtest(
     }
 
 
-def _run_bi_v1_backtest(
-    service: TwelveDataService,
+def _run_bi_v1_backtest_prepared(
     symbol: str,
+    daily_df: pd.DataFrame,
+    entry_df: pd.DataFrame,
     commission_percent: float,
     slippage_percent: float,
 ) -> dict:
-    logger.info("Downloading BI V1 data for %s", symbol)
-    daily_df = service.get_historical_klines(symbol, DAILY_INTERVAL, total_limit=DAILY_HISTORY_LIMIT)
-    time.sleep(65)
-    entry_df = service.get_historical_klines(symbol, BI_TIMEFRAME, total_limit=ENTRY_HISTORY_LIMIT)
     daily_prepared = bi_add_daily(daily_df).dropna().reset_index(drop=True)
     entry_prepared = bi_add_entry(entry_df).dropna().reset_index(drop=True)
 
