@@ -70,16 +70,22 @@ def main() -> None:
     for symbol in SYMBOLS_TO_TEST:
         results.append(_run_smc_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
         time.sleep(15)
- 
+
+    time.sleep(60)
+
     logger.info("=== LCC V1 BACKTEST ===")
     for symbol in LCC_SYMBOLS:
         results.append(_run_lcc_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
         time.sleep(15)
 
+    time.sleep(60)
+
     logger.info("=== MIY V1 BACKTEST ===")
     for symbol in MIY_SYMBOLS:
         results.append(_run_miy_v1_backtest(service, symbol, args.commission_percent, args.slippage_percent))
         time.sleep(15)
+
+    time.sleep(60)
 
     logger.info("=== BI V1 BACKTEST ===")
     for symbol in BI_SYMBOLS:
