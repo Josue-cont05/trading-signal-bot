@@ -1,11 +1,16 @@
 import logging
+import math
 import os
+import time
+from datetime import datetime
 
 import pandas as pd
 import requests
 
 
 logger = logging.getLogger(__name__)
+HISTORICAL_REQUEST_DELAY_SECONDS = 8
+MAX_HISTORICAL_CHUNK_SIZE = 200
 
 INTERVAL_MAP = {
     "1m": "1min",
@@ -38,13 +43,101 @@ class TwelveDataService:
         self.timeout = 15
 
     def get_klines(self, symbol: str, interval: str, limit: int = 200) -> pd.DataFrame:
-        payload = self._request_time_series(symbol, interval, limit)
+        payload = self._request_time_series(symbol, interval, limit, timezone="UTC")
         return self._time_series_to_dataframe(payload, interval)
 
     def get_historical_klines(self, symbol: str, interval: str, total_limit: int = 1000) -> pd.DataFrame:
-        output_size = min(total_limit, 5000)
-        payload = self._request_time_series(symbol, interval, output_size)
-        return self._time_series_to_dataframe(payload, interval)
+        remaining = total_limit
+        end_date = None
+        chunks = []
+        previous_oldest_time = None
+        max_requests = math.ceil(total_limit / MAX_HISTORICAL_CHUNK_SIZE) + 2
+
+        for request_index in range(1, max_requests + 1):
+            if remaining <= 0:
+                break
+
+            chunk_size = min(MAX_HISTORICAL_CHUNK_SIZE, remaining)
+            df = self._get_historical_chunk(
+                symbol=symbol,
+                interval=interval,
+                limit=chunk_size,
+                end_date=end_date,
+            )
+
+            if df.empty:
+                logger.warning(
+                    "Historical download %s %s: chunk %s returned no candles.",
+                    symbol,
+                    interval,
+                    request_index,
+                )
+                break
+
+            oldest_time = df["open_time"].min()
+            if previous_oldest_time is not None and oldest_time >= previous_oldest_time:
+                logger.warning(
+                    "Historical download %s %s stopped because pagination did not move backwards.",
+                    symbol,
+                    interval,
+                )
+                break
+
+            logger.info(
+                "Historical download %s %s: chunk %s returned %s candles.",
+                symbol,
+                interval,
+                request_index,
+                len(df),
+            )
+            chunks.append(df)
+
+            previous_oldest_time = oldest_time
+            end_date = oldest_time - pd.Timedelta(seconds=1)
+            remaining -= len(df)
+
+            if len(df) < chunk_size:
+                logger.info(
+                    "Historical download %s %s reached the available history after %s candles.",
+                    symbol,
+                    interval,
+                    sum(len(chunk) for chunk in chunks),
+                )
+                break
+
+            if remaining > 0 and request_index < max_requests:
+                time.sleep(HISTORICAL_REQUEST_DELAY_SECONDS)
+
+        if remaining > 0 and len(chunks) >= max_requests:
+            logger.warning(
+                "Historical download %s %s stopped after reaching max_requests=%s.",
+                symbol,
+                interval,
+                max_requests,
+            )
+
+        if not chunks:
+            return self._empty_klines_dataframe()
+
+        result = (
+            pd.concat(chunks, ignore_index=True)
+            .drop_duplicates(subset=["open_time"])
+            .sort_values("open_time")
+            .reset_index(drop=True)
+        )
+        result = result.tail(total_limit).reset_index(drop=True)
+
+        if not result.empty:
+            logger.info(
+                "Historical download completed for %s %s: %s candles. Range: %s -> %s",
+                symbol,
+                interval,
+                len(result),
+                result.iloc[0]["open_time"],
+                result.iloc[-1]["open_time"],
+            )
+
+        return result
 
     def get_price(self, symbol: str) -> float:
         mapped_symbol = self._map_symbol(symbol)
@@ -67,7 +160,32 @@ class TwelveDataService:
             logger.error("Invalid Twelve Data price response for %s: %s", symbol, exc)
             raise ValueError(f"Invalid Twelve Data price response for {symbol}") from exc
 
-    def _request_time_series(self, symbol: str, interval: str, output_size: int) -> dict:
+    def _get_historical_chunk(
+        self,
+        symbol: str,
+        interval: str,
+        limit: int = MAX_HISTORICAL_CHUNK_SIZE,
+        end_date: datetime | None = None,
+    ) -> pd.DataFrame:
+        payload = self._request_time_series(
+            symbol=symbol,
+            interval=interval,
+            output_size=min(limit, MAX_HISTORICAL_CHUNK_SIZE),
+            end_date=end_date,
+            timezone="UTC",
+        )
+        if not payload.get("values"):
+            return self._empty_klines_dataframe()
+        return self._time_series_to_dataframe(payload, interval)
+
+    def _request_time_series(
+        self,
+        symbol: str,
+        interval: str,
+        output_size: int,
+        end_date: datetime | None = None,
+        timezone: str | None = None,
+    ) -> dict:
         mapped_symbol = self._map_symbol(symbol)
         mapped_interval = self._map_interval(interval)
         url = f"{self.base_url}/time_series"
@@ -77,6 +195,10 @@ class TwelveDataService:
             "outputsize": output_size,
             "apikey": self.api_key,
         }
+        if end_date is not None:
+            params["end_date"] = pd.Timestamp(end_date).strftime("%Y-%m-%d %H:%M:%S")
+        if timezone is not None:
+            params["timezone"] = timezone
 
         try:
             response = requests.get(url, params=params, timeout=self.timeout)
@@ -88,6 +210,20 @@ class TwelveDataService:
 
         self._raise_for_api_error(payload, require_ok=True)
         return payload
+
+    @staticmethod
+    def _empty_klines_dataframe() -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "open": pd.Series(dtype="float64"),
+                "high": pd.Series(dtype="float64"),
+                "low": pd.Series(dtype="float64"),
+                "close": pd.Series(dtype="float64"),
+                "volume": pd.Series(dtype="float64"),
+                "open_time": pd.Series(dtype="datetime64[ns, UTC]"),
+                "close_time": pd.Series(dtype="datetime64[ns, UTC]"),
+            }
+        )
 
     def _time_series_to_dataframe(self, payload: dict, interval: str) -> pd.DataFrame:
         values = payload.get("values")
